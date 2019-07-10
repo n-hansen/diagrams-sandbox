@@ -12,10 +12,8 @@ maintainer: "nick hansen"
 # category: Other
 
 extra-source-files:
-- CHANGELOG.md
 - LICENSE.md
 - package.yaml
-- README.md
 - stack.yaml
 
 ghc-options: -Wall
