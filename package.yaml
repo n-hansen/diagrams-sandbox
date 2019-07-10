@@ -1,0 +1,65 @@
+# This YAML file describes your package. Stack will automatically generate a
+# Cabal file when you run `stack build`. See the hpack website for help with
+# this file: <https://github.com/sol/hpack>.
+name: diagrams-sandbox
+version: '0.0.0'
+github: "githubuser/diagrams-sandbox"
+license: GPL-3
+author: "nick hansen"
+maintainer: "nick hansen"
+# synopsis: A new Haskeleton package.
+# description: diagrams-sandbox is a new Haskeleton package.
+# category: Other
+
+extra-source-files:
+- CHANGELOG.md
+- LICENSE.md
+- package.yaml
+- README.md
+- stack.yaml
+
+ghc-options: -Wall
+
+library:
+  dependencies:
+  - base
+  source-dirs: library
+
+executables:
+  diagrams-sandbox:
+    source-dirs: executable
+    main: Main.hs
+    dependencies:
+    - base
+    - diagrams-sandbox
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+
+# benchmarks:
+#   diagrams-sandbox-benchmarks:
+#     source-dirs: benchmark
+#     main: Main.hs
+#     dependencies:
+#     - base
+#     - diagrams-sandbox
+#     - criterion
+#     ghc-options:
+#     - -rtsopts
+#     - -threaded
+#     - -with-rtsopts=-N
+
+# tests:
+#   diagrams-sandbox-test-suite:
+#     source-dirs: test-suite
+#     main: Main.hs
+#     dependencies:
+#     - base
+#     - diagrams-sandbox
+#     - tasty
+#     - tasty-hspec
+#     ghc-options:
+#     - -rtsopts
+#     - -threaded
+#     - -with-rtsopts=-N
