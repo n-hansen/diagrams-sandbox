@@ -35,5 +35,5 @@ layTiles tile =
 main = renderCairo out sz =<< d
   where
     out = "out/lfrac.png"
-    sz = mkSizeSpec2D (Just 400) Nothing
-    d = runRandom [1] . layTiles . layTiles . layTiles . layTiles $ ell
+    sz = mkSizeSpec2D (Just 1000) Nothing
+    d = runRandom [1] . unsafeHead . drop 6 . iterate layTiles $ ell
