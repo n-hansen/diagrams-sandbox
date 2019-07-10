@@ -20,6 +20,13 @@ extra-source-files:
 
 ghc-options: -Wall
 
+default-extensions:
+- NoMonomorphismRestriction
+- FlexibleContexts
+- TypeFamilies
+- ConstraintKinds
+- NamedFieldPuns
+
 dependencies:
 - base-noprelude
 - protolude
@@ -27,6 +34,8 @@ dependencies:
 - diagrams-lib
 - diagrams-contrib
 - diagrams-cairo
+- mtl
+- mwc-random
 
 library:
   source-dirs: lib
