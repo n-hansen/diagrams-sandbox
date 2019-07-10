@@ -20,9 +20,14 @@ extra-source-files:
 
 ghc-options: -Wall
 
+dependencies:
+- base
+- diagrams-core
+- diagrams-lib
+- diagrams-contrib
+- diagrams-cairo
+
 library:
-  dependencies:
-  - base
   source-dirs: library
 
 executables:
@@ -30,7 +35,6 @@ executables:
     source-dirs: executable
     main: Main.hs
     dependencies:
-    - base
     - diagrams-sandbox
     ghc-options:
     - -rtsopts
