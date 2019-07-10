@@ -21,14 +21,17 @@ extra-source-files:
 ghc-options: -Wall
 
 dependencies:
-- base
+- name: base
+  mixin:
+    - hiding (Prelude)
+- protolude
 - diagrams-core
 - diagrams-lib
 - diagrams-contrib
 - diagrams-cairo
 
 library:
-  source-dirs: library
+  source-dirs: lib
 
 executables:
   diagrams-sandbox:
