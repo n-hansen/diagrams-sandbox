@@ -34,9 +34,9 @@ library:
   source-dirs: lib
 
 executables:
-  diagrams-sandbox:
-    source-dirs: executable
-    main: Main.hs
+  lfrac:
+    source-dirs: src
+    main: LFrac.hs
     dependencies:
     - diagrams-sandbox
     ghc-options:
