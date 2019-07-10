@@ -1,1 +1,1 @@
-lfrac: open out/lfrac.png; watchman-make --make "stack build && stack exec" -p src/LFrac.hs -t lfrac
+lfrac: open out/lfrac.png; watchman-make --make "stack build && stack exec" -p package.yaml 'lib/**/*.hs' src/LFrac.hs -t lfrac
