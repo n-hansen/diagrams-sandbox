@@ -49,6 +49,7 @@ executables:
     dependencies:
     - diagrams-sandbox
     ghc-options:
+    - -main-is LFrac.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
