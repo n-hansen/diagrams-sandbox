@@ -35,6 +35,7 @@ dependencies:
 - mtl
 - mwc-random
 - colour
+- vector
 
 library:
   source-dirs: lib
@@ -50,6 +51,17 @@ executables:
     - diagrams-sandbox
     ghc-options:
     - -main-is LFrac.main
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+
+  fifteen:
+    source-dirs: src
+    main: Fifteen.hs
+    dependencies:
+    - diagrams-sandbox
+    ghc-options:
+    - -main-is Fifteen.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
