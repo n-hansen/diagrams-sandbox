@@ -63,29 +63,28 @@ executables:
 
   fifteen:
     source-dirs: src
-    main: Fifteen.hs
+    main: FifteenMain.hs
     dependencies:
     - diagrams-sandbox
-    - criterion
     ghc-options:
-    - -main-is Fifteen.main
+    - -main-is FifteenMain.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
     - -O2
 
-# benchmarks:
-#   diagrams-sandbox-benchmarks:
-#     source-dirs: benchmark
-#     main: Main.hs
-#     dependencies:
-#     - base
-#     - diagrams-sandbox
-#     - criterion
-#     ghc-options:
-#     - -rtsopts
-#     - -threaded
-#     - -with-rtsopts=-N
+benchmarks:
+  fifteen-benchmarks:
+    source-dirs: benchmark
+    main: FifteenBench.hs
+    dependencies:
+    - diagrams-sandbox
+    - criterion
+    ghc-options:
+    - -main-is FifteenBench.main
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
 
 # tests:
 #   diagrams-sandbox-test-suite:

@@ -8,7 +8,8 @@ module Fifteen (
   isSolvable,
   solve,
   renderPuzzle,
-  applyMove
+  applyMove,
+  manhattanScore
   ) where
 
 import           Control.Monad.Writer
@@ -20,7 +21,6 @@ import           Data.Vector.Instances()
 import qualified Data.Vector.Mutable    as VM
 --import           Diagrams.Backend.Cairo
 
---import Criterion.Main
 
 type PuzzleState = V.Vector Tile
 
@@ -59,8 +59,8 @@ isSolvable ps = even $ permutationParity + emptySpaceParity
                   when (i /= j) $ do
                   tell 1
                   lift $ VM.swap vec i j
-                -- set pivot as median of lo/mid/hi
                 mid = (lo + hi) `div` 2
+            -- set pivot as median of lo/mid/hi
             whenM ((<) <$> read mid <*> read lo) $
               swap lo mid
             whenM ((<) <$> read hi <*> read lo) $
@@ -82,8 +82,8 @@ isSolvable ps = even $ permutationParity + emptySpaceParity
 
         emptySpaceParity = maybe 0 (uncurry (+) . ix2coord) . V.findIndex (== Blank) $ ps
 
-solve :: Int -> PuzzleState -> Maybe [(Move, PuzzleState)]
-solve workFactor ps = if isSolvable ps then findSolution else Nothing
+solve :: (PuzzleState -> Int) -> PuzzleState -> Maybe [(Move, PuzzleState)]
+solve score ps = if isSolvable ps then findSolution else Nothing
   where
     findSolution =
       reverse <$>
@@ -110,18 +110,6 @@ solve workFactor ps = if isSolvable ps then findSolution else Nothing
       (: currentPath) <$> solution
         <|> go seenStates' prioritizedTree'
 
-    score = (workFactor *) . score'
-
-    score' :: PuzzleState -> Int
-    score' = flip V.ifoldl' 0 $
-      \acc ix t ->
-        case t of
-          Blank -> 0
-          _     ->
-            let (x1,y1) = ix2coord ix
-                (x2,y2) = ix2coord $ fromEnum t
-            in acc + abs (x1 - x2) + abs (y1 - y2)
-
     isSolved :: PuzzleState -> Bool
     isSolved st =
       V.and
@@ -139,6 +127,17 @@ solve workFactor ps = if isSolvable ps then findSolution else Nothing
           , if y > 0 then Just $ Move (blankAt - 1) blankAt else Nothing
           , if y < 3 then Just $ Move (blankAt + 1) blankAt else Nothing
           ]
+
+manhattanScore :: PuzzleState -> Int
+manhattanScore =
+  flip V.ifoldl' 0 $
+  \acc ix t ->
+    case t of
+      Blank -> 0
+      _     ->
+        let (x1,y1) = ix2coord ix
+            (x2,y2) = ix2coord $ fromEnum t
+        in acc + abs (x1 - x2) + abs (y1 - y2)
 
 applyMove :: Move -> PuzzleState -> PuzzleState
 applyMove (Move from to) st =
@@ -160,25 +159,3 @@ renderPuzzle ps = vsep spacing rows
       case t of
         Blank -> square 1
         _     -> square 1 <> text (show . (+ 1) . fromEnum $ t)
-
-
-main :: IO ()
-main =
-  -- defaultMain [ bgroup "state3" [bench ("work " <> show x) $ whnf (solve x) state3 | x <- [1,3,5,7]]
-  --             , bgroup "state4" [bench ("work " <> show x) $ whnf (solve x) state4 | x <- [1,3,5,7]]
-  --             ]
-  print $ fmap fst <$> solve 7 state2
-  -- renderCairo out sz d
-  -- where
-  --   out = "out/fifteen.png"
-  --   sz  = mkSizeSpec2D (Just 500) Nothing
-  --   d   = renderPuzzle state1
-
-state1,state2,state3,state4 :: PuzzleState
-state1 = V.fromList $ [Blank] <> [T1 .. T15]
-
-state2 = V.fromList $ [Blank,T2,T1] <> [T3 .. T15]
-
-state3 = V.fromList $ [T1 .. T12] <> [T15, T13, Blank, T14]
-
-state4 = V.fromList $ [T1 .. T8] <> [T15, T14, T13, Blank] <> [T12, T11 .. T9]
