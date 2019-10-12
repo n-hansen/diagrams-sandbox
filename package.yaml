@@ -24,6 +24,9 @@ default-extensions:
 - TypeFamilies
 - ConstraintKinds
 - NamedFieldPuns
+- LambdaCase
+- MultiWayIf
+- GeneralizedNewtypeDeriving
 
 dependencies:
 - base-noprelude
@@ -36,6 +39,9 @@ dependencies:
 - mwc-random
 - colour
 - vector
+- containers
+- hashable
+- vector-instances
 
 library:
   source-dirs: lib
