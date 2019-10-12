@@ -9,7 +9,8 @@ module Fifteen (
   solve,
   renderPuzzle,
   applyMove,
-  manhattanScore
+  manhattanScore,
+  linearConflictScore
   ) where
 
 import           Control.Monad.Writer
@@ -138,6 +139,16 @@ manhattanScore =
         let (x1,y1) = ix2coord ix
             (x2,y2) = ix2coord $ fromEnum t
         in acc + abs (x1 - x2) + abs (y1 - y2)
+
+linearConflictScore :: PuzzleState -> Int
+linearConflictScore st = manhattanScore st + 2 * linearConflicts
+  where
+    linearConflicts = sum . fmap countConflicts $ rows
+
+    countConflicts [] = 0
+    countConflicts (x:xs) = (countConflicts xs +) . length . filter (< x) $ xs
+
+    rows = fmap V.toList . unfoldr (\ts -> if V.null ts then Nothing else Just $ V.splitAt 4 ts) $ st
 
 applyMove :: Move -> PuzzleState -> PuzzleState
 applyMove (Move from to) st =
