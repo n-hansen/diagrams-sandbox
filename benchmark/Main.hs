@@ -1,13 +1,14 @@
-module FifteenBench where
+import Criterion.Main
 
 import Fifteen
 import Data.Vector
-import Criterion.Main
 
 main :: IO ()
 main = defaultMain groups
   where
-    groups = [bgroup "a* solver" $ solverGroups1 <> solverGroups2]
+    groups = [fifteenGroup]
+
+    fifteenGroup = bgroup "fifteen solver" $ solverGroups1 <> solverGroups2
 
     solverGroups1 = do
       (id, state) <- [ ("state 1", fromList $ [T1 .. T12] <> [T15, T13, Blank, T14])

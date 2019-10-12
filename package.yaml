@@ -76,12 +76,11 @@ executables:
 benchmarks:
   fifteen-benchmarks:
     source-dirs: benchmark
-    main: FifteenBench.hs
+    main: Main.hs
     dependencies:
     - diagrams-sandbox
     - criterion
     ghc-options:
-    - -main-is FifteenBench.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
