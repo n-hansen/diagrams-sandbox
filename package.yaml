@@ -66,11 +66,13 @@ executables:
     main: Fifteen.hs
     dependencies:
     - diagrams-sandbox
+    - criterion
     ghc-options:
     - -main-is Fifteen.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
+    - -O2
 
 # benchmarks:
 #   diagrams-sandbox-benchmarks:

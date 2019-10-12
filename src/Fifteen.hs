@@ -1,25 +1,39 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-module Fifteen where
+module Fifteen (
+  PuzzleState,
+  Tile(..),
+  Move(..),
+  ix2coord,
+  coord2ix,
+  isSolvable,
+  solve,
+  renderPuzzle,
+  applyMove
+  ) where
 
 import           Control.Monad.Writer
 import qualified Data.IntMap.Strict     as IM
-import qualified Data.IntSet            as IS
+import qualified Data.Set               as S
 import           Data.STRef
 import qualified Data.Vector            as V
 import           Data.Vector.Instances()
 import qualified Data.Vector.Mutable    as VM
-import           Diagrams.Backend.Cairo
+--import           Diagrams.Backend.Cairo
+
+--import Criterion.Main
 
 type PuzzleState = V.Vector Tile
 
-newtype Tile = Tile (Maybe Int) deriving (Eq, Show, Hashable)
-
-instance Ord Tile where
-  _ <= Tile Nothing = True
-  Tile Nothing <= _ = False
-  Tile (Just x) <= Tile (Just y) = x <= y
+data Tile = T1  | T2  | T3  | T4
+          | T5  | T6  | T7  | T8
+          | T9  | T10 | T11 | T12
+          | T13 | T14 | T15 | Blank
+          deriving (Eq,Show,Enum,Ord)
 
 data Move = Move Int Int deriving Show
+
+stateId :: PuzzleState -> Word64
+stateId = V.foldl' (\acc t -> acc * 16 + (fromIntegral . fromEnum) t) 0
 
 ix2coord :: Int -> (Int,Int)
 ix2coord ix = divMod ix 4
@@ -66,27 +80,27 @@ isSolvable ps = even $ permutationParity + emptySpaceParity
             _ <- qsort lo (i' - 1) vec
             qsort (i' + 1) hi vec
 
-        emptySpaceParity = maybe 0 (uncurry (+) . ix2coord) . V.findIndex (== Tile Nothing) $ ps
+        emptySpaceParity = maybe 0 (uncurry (+) . ix2coord) . V.findIndex (== Blank) $ ps
 
-solve :: PuzzleState -> Maybe [(Move, PuzzleState)]
-solve ps = if isSolvable ps then findSolution else Nothing
+solve :: Int -> PuzzleState -> Maybe [(Move, PuzzleState)]
+solve workFactor ps = if isSolvable ps then findSolution else Nothing
   where
     findSolution =
       reverse <$>
-      go (IS.singleton . hash $ ps) (IM.singleton 0 [[(Move 0 0, ps)]])
+      go (S.singleton . stateId $ ps) (IM.singleton 0 [[(Move 0 0, ps)]])
 
-    go :: IntSet -> IntMap [[(Move, PuzzleState)]] -> Maybe [(Move, PuzzleState)]
+    go :: Set Word64 -> IntMap [[(Move, PuzzleState)]] -> Maybe [(Move, PuzzleState)]
     go seenStates prioritizedTree = do
       currentPath@((_, currentNode):_) <- head =<< (snd <$> IM.lookupMin prioritizedTree)
       let depth = length currentPath
           children =
-            filter (flip IS.notMember seenStates . hash . snd)
+            filter (flip S.notMember seenStates . stateId . snd)
             $ expandNode currentNode
           solution = find (isSolved . snd) children
           seenStates' =
-            IS.union seenStates
-            . IS.fromList
-            . fmap (hash . snd)
+            S.union seenStates
+            . S.fromList
+            . fmap (stateId . snd)
             $ children
           prioritizedTree' =
             IM.unionsWith (<>)
@@ -96,15 +110,17 @@ solve ps = if isSolvable ps then findSolution else Nothing
       (: currentPath) <$> solution
         <|> go seenStates' prioritizedTree'
 
-    score :: PuzzleState -> Int
-    score = flip V.ifoldl' 0 $
-      \acc ix (Tile t) ->
+    score = (workFactor *) . score'
+
+    score' :: PuzzleState -> Int
+    score' = flip V.ifoldl' 0 $
+      \acc ix t ->
         case t of
-          Nothing -> 0
-          Just n  ->
+          Blank -> 0
+          _     ->
             let (x1,y1) = ix2coord ix
-                (x2,y2) = ix2coord $ n - 1
-            in acc + (abs $ x1 - x2) + (abs $ y1 - y2)
+                (x2,y2) = ix2coord $ fromEnum t
+            in acc + abs (x1 - x2) + abs (y1 - y2)
 
     isSolved :: PuzzleState -> Bool
     isSolved st =
@@ -114,7 +130,7 @@ solve ps = if isSolvable ps then findSolution else Nothing
 
     expandNode :: PuzzleState -> [(Move, PuzzleState)]
     expandNode st = do
-      blankAt <- maybeToList . V.findIndex (== Tile Nothing) $ st
+      blankAt <- maybeToList . V.findIndex (== Blank) $ st
       let (x,y) = ix2coord blankAt
       fmap (\m -> (m, applyMove m st))
         . catMaybes
@@ -126,7 +142,7 @@ solve ps = if isSolvable ps then findSolution else Nothing
 
 applyMove :: Move -> PuzzleState -> PuzzleState
 applyMove (Move from to) st =
-  st V.// [ (from, Tile Nothing)
+  st V.// [ (from, Blank)
           , (to, st V.! from)
           ]
 
@@ -140,20 +156,29 @@ renderPuzzle ps = vsep spacing rows
 
     renderRow = hsep spacing . fmap renderTile
 
-    renderTile (Tile t) =
+    renderTile t =
       case t of
-        Nothing -> square 1
-        Just n  -> square 1 <> text (show n)
+        Blank -> square 1
+        _     -> square 1 <> text (show . (+ 1) . fromEnum $ t)
 
 
-main = renderCairo out sz d
-  where
-    out = "out/fifteen.png"
-    sz  = mkSizeSpec2D (Just 500) Nothing
-    d   = renderPuzzle state1
+main :: IO ()
+main =
+  -- defaultMain [ bgroup "state3" [bench ("work " <> show x) $ whnf (solve x) state3 | x <- [1,3,5,7]]
+  --             , bgroup "state4" [bench ("work " <> show x) $ whnf (solve x) state4 | x <- [1,3,5,7]]
+  --             ]
+  print $ fmap fst <$> solve 7 state2
+  -- renderCairo out sz d
+  -- where
+  --   out = "out/fifteen.png"
+  --   sz  = mkSizeSpec2D (Just 500) Nothing
+  --   d   = renderPuzzle state1
 
-state1 = V.fromList . map Tile . (Nothing :) . map Just $ [1..15]
+state1,state2,state3,state4 :: PuzzleState
+state1 = V.fromList $ [Blank] <> [T1 .. T15]
 
-state2 = V.fromList . map Tile . (Nothing :) . map Just $ [2,1] <> [3..15]
+state2 = V.fromList $ [Blank,T2,T1] <> [T3 .. T15]
 
-state3 = V.fromList . map Tile $ [Just x | x <- [1..12]] <> [Just 15, Just 13, Nothing, Just 14]
+state3 = V.fromList $ [T1 .. T12] <> [T15, T13, Blank, T14]
+
+state4 = V.fromList $ [T1 .. T8] <> [T15, T14, T13, Blank] <> [T12, T11 .. T9]
