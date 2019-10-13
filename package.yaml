@@ -42,6 +42,7 @@ dependencies:
 - containers
 - hashable
 - vector-instances
+- active
 
 library:
   source-dirs: lib

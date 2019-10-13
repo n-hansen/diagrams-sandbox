@@ -8,19 +8,21 @@ module Fifteen (
   isSolvable,
   solve,
   renderPuzzle,
+  renderMove,
+  renderSolution,
   applyMove,
   manhattanScore,
   linearConflictScore
   ) where
 
 import           Control.Monad.Writer
+
 import qualified Data.IntMap.Strict     as IM
 import qualified Data.Set               as S
 import           Data.STRef
 import qualified Data.Vector            as V
 import           Data.Vector.Instances()
 import qualified Data.Vector.Mutable    as VM
---import           Diagrams.Backend.Cairo
 
 
 type PuzzleState = V.Vector Tile
@@ -37,10 +39,10 @@ stateId :: PuzzleState -> Word64
 stateId = V.foldl' (\acc t -> acc * 16 + (fromIntegral . fromEnum) t) 0
 
 ix2coord :: Int -> (Int,Int)
-ix2coord ix = divMod ix 4
+ix2coord ix = swap $ divMod ix 4
 
 coord2ix :: (Int,Int) -> Int
-coord2ix (x,y) = x * 4 + y
+coord2ix (x,y) = x + y * 4
 
 isSolvable :: PuzzleState -> Bool
 isSolvable ps = even $ permutationParity + emptySpaceParity
@@ -123,10 +125,10 @@ solve score ps = if isSolvable ps then findSolution else Nothing
       let (x,y) = ix2coord blankAt
       fmap (\m -> (m, applyMove m st))
         . catMaybes
-        $ [ if x > 0 then Just $ Move (blankAt - 4) blankAt else Nothing
-          , if x < 3 then Just $ Move (blankAt + 4) blankAt else Nothing
-          , if y > 0 then Just $ Move (blankAt - 1) blankAt else Nothing
-          , if y < 3 then Just $ Move (blankAt + 1) blankAt else Nothing
+        $ [ if x > 0 then Just $ Move (blankAt - 1) blankAt else Nothing
+          , if x < 3 then Just $ Move (blankAt + 1) blankAt else Nothing
+          , if y > 0 then Just $ Move (blankAt - 4) blankAt else Nothing
+          , if y < 3 then Just $ Move (blankAt + 4) blankAt else Nothing
           ]
 
 manhattanScore :: PuzzleState -> Int
@@ -170,3 +172,52 @@ renderPuzzle ps = vsep spacing rows
       case t of
         Blank -> square 1
         _     -> square 1 <> text (show . (+ 1) . fromEnum $ t)
+
+renderMove ps (Move fromIx toIx) = dynamic <> static
+  where
+    gridScale = 2
+    padding = 0.1
+    baseTile = square $ gridScale - padding
+
+    static =
+      pure
+      . vsep padding
+      . fmap renderRow
+      . unfoldr (\ts -> if V.null ts then Nothing else Just $ V.splitAt 4 ts)
+      . V.imap (\ix t -> guard (ix /= fromIx && ix /= toIx) >> pure t)
+      $ ps
+
+    renderRow =
+      hsep padding
+      . fmap renderTile
+      . V.toList
+
+    renderTile t =
+      case t of
+        Nothing ->
+          baseTile # lw none
+        Just Blank ->
+          baseTile # lw none
+        Just t' ->
+          text (show t') <> baseTile # fc white
+
+    coords = first ((gridScale *) . fromIntegral) . second (negate . (gridScale *) . fromIntegral) . ix2coord
+    (fromX, fromY) = coords fromIx
+    (toX, toY) = coords toIx
+
+    coerceTime = fromRational . fromTime
+
+    dynamic = mkActive 0 1 $ \t ->
+      translateX (fromX * (1 - coerceTime t) + toX * coerceTime t)
+      . translateY (fromY * (1 - coerceTime t) + toY * coerceTime t)
+      . renderTile
+      $ ps V.!? fromIx
+
+renderSolution = movie . renderMoves . fromMaybe [] . solve'
+  where
+    solve' = solve ((15 *) . linearConflictScore)
+
+    renderMoves [] = []
+    renderMoves [_] = []
+    renderMoves ((_,st):rest@((mv,_):_)) =
+      renderMove st mv : renderMoves rest

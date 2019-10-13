@@ -1,1 +1,2 @@
 lfrac: open out/lfrac.png; watchman-make --make "stack build && stack exec" -p package.yaml 'lib/**/*.hs' src/LFrac.hs -t lfrac
+fifteen: stack run fifteen -- -w 500 -o out/fifteen.png; and ffmpeg -r 60 -f image2 -i out/fifteen%04d.png -vcodec libx264 -crf 25 -pix_fmt yuv420p out/fifteen.mp4; and rm out/fifteen*.png
