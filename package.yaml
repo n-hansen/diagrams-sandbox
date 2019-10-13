@@ -43,6 +43,7 @@ dependencies:
 - hashable
 - vector-instances
 - active
+- palette
 
 library:
   source-dirs: lib

@@ -16,7 +16,7 @@ module Fifteen (
   ) where
 
 import           Control.Monad.Writer
-
+import           Data.Colour.Palette.ColorSet
 import qualified Data.IntMap.Strict     as IM
 import qualified Data.Set               as S
 import           Data.STRef
@@ -173,15 +173,18 @@ renderPuzzle ps = vsep spacing rows
         Blank -> square 1
         _     -> square 1 <> text (show . (+ 1) . fromEnum $ t)
 
-renderMove ps (Move fromIx toIx) = dynamic <> static
+uiInterpolate :: Fractional a => a -> a -> Active a
+uiInterpolate start end =
+  mkActive 0 1 $ \t -> start + (end - start) * (fromRational . fromTime) t
+
+renderMove pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
     padding = 0.1
     baseTile = square $ gridScale - padding
 
     static =
-      pure
-      . vsep padding
+      vsep padding
       . fmap renderRow
       . unfoldr (\ts -> if V.null ts then Nothing else Just $ V.splitAt 4 ts)
       . V.imap (\ix t -> guard (ix /= fromIx && ix /= toIx) >> pure t)
@@ -195,29 +198,33 @@ renderMove ps (Move fromIx toIx) = dynamic <> static
     renderTile t =
       case t of
         Nothing ->
-          baseTile # lw none
+          pure $ baseTile # lw none
         Just Blank ->
-          baseTile # lw none
+          pure $ baseTile # lw none
         Just t' ->
-          text (show t') <> baseTile # fc white
+          let ix = fromEnum t'
+              fromColor = white
+              toColor = rybColor $ ix + 2*(snd . ix2coord $ ix)
+              c = blend <$> uiInterpolate pctStart pctEnd <*> pure fromColor <*> pure toColor
+          in fc <$> c <*> baseTile
 
     coords = first ((gridScale *) . fromIntegral) . second (negate . (gridScale *) . fromIntegral) . ix2coord
     (fromX, fromY) = coords fromIx
     (toX, toY) = coords toIx
 
-    coerceTime = fromRational . fromTime
+    dynamic =
+      let tx = translateX <$> uiInterpolate fromX toX
+          ty = translateY <$> uiInterpolate fromY toY
+          tile = renderTile $ ps V.!? fromIx
+      in tx <*> (ty <*> tile)
 
-    dynamic = mkActive 0 1 $ \t ->
-      translateX (fromX * (1 - coerceTime t) + toX * coerceTime t)
-      . translateY (fromY * (1 - coerceTime t) + toY * coerceTime t)
-      . renderTile
-      $ ps V.!? fromIx
-
-renderSolution = movie . renderMoves . fromMaybe [] . solve'
+renderSolution ps = movie . renderMoves 0 $ solution
   where
-    solve' = solve ((15 *) . linearConflictScore)
+    solution = fromMaybe [] $ solve ((15 *) . linearConflictScore) ps
 
-    renderMoves [] = []
-    renderMoves [_] = []
-    renderMoves ((_,st):rest@((mv,_):_)) =
-      renderMove st mv : renderMoves rest
+    stepSize = 1 / fromIntegral (length solution)
+
+    renderMoves _ [] = []
+    renderMoves _ [_] = []
+    renderMoves i ((_,st):rest@((mv,_):_)) =
+      renderMove (i*stepSize) ((i+1)*stepSize) st mv : renderMoves (i+1) rest
