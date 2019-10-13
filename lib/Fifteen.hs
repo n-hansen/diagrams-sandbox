@@ -48,8 +48,8 @@ stateId = V.foldl' (\acc t -> acc * 16 + (fromIntegral . fromEnum) t) 0
 ix2coord :: Int -> (Int,Int)
 ix2coord ix = swap $ divMod ix 4
 
-coord2ix :: (Int,Int) -> Int
-coord2ix (x,y) = x + y * 4
+coord2ix :: Int -> Int -> Int
+coord2ix x y = x + y * 4
 
 isSolvable :: PuzzleState -> Bool
 isSolvable ps = even $ permutationParity + emptySpaceParity
@@ -152,12 +152,20 @@ manhattanScore =
 linearConflictScore :: PuzzleState -> Int
 linearConflictScore st = manhattanScore st + 2 * linearConflicts
   where
-    linearConflicts = sum . fmap countConflicts $ rows
+    linearConflicts = countConflicts rows + countConflicts cols
 
-    countConflicts [] = 0
-    countConflicts (x:xs) = (countConflicts xs +) . length . filter (< x) $ xs
+    countConflicts = sum . fmap countConflicts'
+
+    countConflicts' [] = 0
+    countConflicts' (Blank:rest) = countConflicts' rest
+    countConflicts' (x:xs) = (countConflicts' xs +) . length . filter (< x) $ xs
 
     rows = fmap V.toList . unfoldr (\ts -> if V.null ts then Nothing else Just $ V.splitAt 4 ts) $ st
+    cols = do
+      x <- [0..3]
+      pure $ do
+        y <- [0..3]
+        pure $ st V.! (coord2ix x y)
 
 applyMove :: Move -> PuzzleState -> PuzzleState
 applyMove (Move from to) st =
@@ -203,8 +211,8 @@ hueBlend pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix l0 l1)
 renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
-    padding = 0.02
-    baseTile = square $ gridScale - padding
+    padding = 0.04
+    baseTile = lineJoin LineJoinRound . square $ gridScale - padding
 
     static =
       vsep padding
@@ -246,7 +254,7 @@ renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> stat
 
 renderSolution initialColors ps = movie . renderMoves 0 $ solution
   where
-    solution = fromMaybe [] $ solve ((13 *) . linearConflictScore) ps
+    solution = fromMaybe [] $ solve ((5 *) . linearConflictScore) ps
 
     stepSize = 1 / fromIntegral (traceShowId $ length solution)
 
