@@ -10,19 +10,26 @@ module Fifteen (
   renderPuzzle,
   renderMove,
   renderSolution,
+  renderShuffleThenSolve,
   applyMove,
   manhattanScore,
   linearConflictScore
   ) where
 
+import           Control.Monad.Random
 import           Control.Monad.Writer
 import           Data.Colour.Palette.ColorSet
+import           Data.Colour.RGBSpace (uncurryRGB)
+import           Data.Colour.RGBSpace.HSL
 import qualified Data.IntMap.Strict     as IM
+import qualified Data.Map.Strict        as M
 import qualified Data.Set               as S
 import           Data.STRef
 import qualified Data.Vector            as V
 import           Data.Vector.Instances()
 import qualified Data.Vector.Mutable    as VM
+import qualified Ease
+import           System.Random.Shuffle
 
 
 type PuzzleState = V.Vector Tile
@@ -177,7 +184,23 @@ uiInterpolate :: Fractional a => a -> a -> Active a
 uiInterpolate start end =
   mkActive 0 1 $ \t -> start + (end - start) * (fromRational . fromTime) t
 
-renderMove pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
+uiEased :: (Floating a, Ord a) => a -> a -> Active a
+uiEased start end =
+  mkActive 0 1 $ \t -> start + (end - start) * (Ease.quadInOut . fromRational . fromTime) t
+
+hueBlend :: (Ord a, RealFrac a, Floating a) => a -> Colour a -> Colour a -> Colour a
+hueBlend pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix l0 l1)
+  where
+    (h0, s0, l0) = hslView . toSRGB $ start
+    (h1, s1, l1) = hslView . toSRGB $ end
+    mix x0 x1 = x0 + pct * (x1 - x0)
+    hBlend = if abs (h0 - h1) <= 0.5 then mix h0 h1
+             else let mixed = if h0 > h1
+                              then mix h0 (h1 + 1)
+                              else mix (h0 + 1) h1
+                  in if mixed <= 1 then mixed else mixed - 1
+
+renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
     padding = 0.1
@@ -195,6 +218,10 @@ renderMove pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
       . fmap renderTile
       . V.toList
 
+    tileColor t =
+      let ix = fromEnum t
+      in rybColor $ ix + 2*(snd . ix2coord $ ix)
+
     renderTile t =
       case t of
         Nothing ->
@@ -202,10 +229,9 @@ renderMove pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
         Just Blank ->
           pure $ baseTile # lw none
         Just t' ->
-          let ix = fromEnum t'
-              fromColor = white
-              toColor = rybColor $ ix + 2*(snd . ix2coord $ ix)
-              c = blend <$> uiInterpolate pctStart pctEnd <*> pure fromColor <*> pure toColor
+          let fromColor = tileColor $ initialColors M.! t'
+              toColor = tileColor t'
+              c = hueBlend <$> uiInterpolate pctStart pctEnd <*> pure fromColor <*> pure toColor
           in fc <$> c <*> baseTile
 
     coords = first ((gridScale *) . fromIntegral) . second (negate . (gridScale *) . fromIntegral) . ix2coord
@@ -213,18 +239,26 @@ renderMove pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
     (toX, toY) = coords toIx
 
     dynamic =
-      let tx = translateX <$> uiInterpolate fromX toX
-          ty = translateY <$> uiInterpolate fromY toY
+      let tx = translateX <$> uiEased fromX toX
+          ty = translateY <$> uiEased fromY toY
           tile = renderTile $ ps V.!? fromIx
       in tx <*> (ty <*> tile)
 
-renderSolution ps = movie . renderMoves 0 $ solution
+renderSolution initialColors ps = movie . renderMoves 0 $ solution
   where
-    solution = fromMaybe [] $ solve ((15 *) . linearConflictScore) ps
+    solution = fromMaybe [] $ solve ((13 *) . linearConflictScore) ps
 
-    stepSize = 1 / fromIntegral (length solution)
+    stepSize = 1 / fromIntegral (traceShowId $ length solution)
 
     renderMoves _ [] = []
     renderMoves _ [_] = []
     renderMoves i ((_,st):rest@((mv,_):_)) =
-      renderMove (i*stepSize) ((i+1)*stepSize) st mv : renderMoves (i+1) rest
+      renderMove initialColors (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize) st mv : renderMoves (traceShowId $ i+1) rest
+
+renderShuffleThenSolve = do
+  let solvableShuffle = do
+        s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
+        if isSolvable s then pure s else solvableShuffle
+  ps <- evalRandIO solvableShuffle
+  let initialColors = M.fromList . zip (V.toList ps) $ [T1 .. T15]
+  pure $ renderSolution initialColors ps

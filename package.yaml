@@ -44,6 +44,10 @@ dependencies:
 - vector-instances
 - active
 - palette
+- random
+- MonadRandom
+- random-shuffle
+- data-default
 
 library:
   source-dirs: lib
