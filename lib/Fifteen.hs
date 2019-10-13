@@ -203,7 +203,7 @@ hueBlend pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix l0 l1)
 renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
-    padding = 0.1
+    padding = 0.02
     baseTile = square $ gridScale - padding
 
     static =
