@@ -1,4 +1,5 @@
-{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-partial-type-signatures #-}
 module Fifteen (
   PuzzleState,
   Tile(..),
@@ -173,6 +174,7 @@ applyMove (Move from to) st =
           , (to, st V.! from)
           ]
 
+renderPuzzle :: _ => PuzzleState -> _
 renderPuzzle ps = vsep spacing rows
   where
     spacing = 0.1
@@ -212,12 +214,13 @@ hueBlend loopCount pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix
              --                  else mix (h0 + 360) h1
              --      in if mixed <= 360 then mixed else mixed - 360
 
-type ColorScheme a = M.Map Tile (Colour a)
+type ColorScheme = M.Map Tile (Colour Double)
 
-blendColorScheme :: (Ord a, RealFrac a, Floating a) => a -> ColorScheme a -> ColorScheme a -> ColorScheme a
+blendColorScheme :: Double -> ColorScheme -> ColorScheme -> ColorScheme
 blendColorScheme pct =
   M.unionWith $ hueBlend 2 pct
 
+renderMove :: _ => Active ColorScheme -> PuzzleState -> Move -> Active _
 renderMove colors ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
@@ -258,10 +261,12 @@ renderMove colors ps (Move fromIx toIx) = dynamic <> static
           tile = renderTile $ ps V.!? fromIx
       in tx <*> (ty <*> tile)
 
+tileColor :: Tile -> Colour Double
 tileColor t =
   let ix = fromEnum t
   in rybColor $ ix + 2*(snd . ix2coord $ ix)
 
+renderSolution :: _ => ColorScheme -> PuzzleState -> Active _
 renderSolution initialColors ps = movie . renderMoves 0 $ solution
   where
     solution = fromMaybe [] $ solve ((2 *) . linearConflictScore) ps
@@ -281,6 +286,7 @@ renderSolution initialColors ps = movie . renderMoves 0 $ solution
             <*> pure finalColors
       in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
 
+renderShuffleThenSolve :: _ => IO (Active _)
 renderShuffleThenSolve = do
   let solvableShuffle = do
         s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
