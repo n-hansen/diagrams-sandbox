@@ -196,19 +196,29 @@ uiEased :: (Floating a, Ord a) => a -> a -> Active a
 uiEased start end =
   mkActive 0 1 $ \t -> start + (end - start) * (Ease.quadInOut . fromRational . fromTime) t
 
-hueBlend :: (Ord a, RealFrac a, Floating a) => a -> Colour a -> Colour a -> Colour a
-hueBlend pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix l0 l1)
+hueBlend :: (Ord a, RealFrac a, Floating a) => Int -> a -> Colour a -> Colour a -> Colour a
+hueBlend loopCount pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix l0 l1)
   where
+    loopOffset = 360 * fromIntegral loopCount
     (h0, s0, l0) = hslView . toSRGB $ start
     (h1, s1, l1) = hslView . toSRGB $ end
     mix x0 x1 = x0 + pct * (x1 - x0)
-    hBlend = if abs (h0 - h1) <= 0.5 then mix h0 h1
-             else let mixed = if h0 > h1
-                              then mix h0 (h1 + 1)
-                              else mix (h0 + 1) h1
-                  in if mixed <= 1 then mixed else mixed - 1
+    hBlend = if | abs (h0 - h1) <= 180 && h0 < h1 -> mix h0 (h1+loopOffset)
+                | abs (h0 - h1) <= 180            -> mix (h0+loopOffset) h1
+                | h0 < h1                         -> mix (h0 + 360 + loopOffset) h1
+                | otherwise                       -> mix h0 (h1 + 360 + loopOffset)
+             -- else let mixed = if h0 > h1
+             --                  then mix h0 (h1 + 360)
+             --                  else mix (h0 + 360) h1
+             --      in if mixed <= 360 then mixed else mixed - 360
 
-renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> static
+type ColorScheme a = M.Map Tile (Colour a)
+
+blendColorScheme :: (Ord a, RealFrac a, Floating a) => a -> ColorScheme a -> ColorScheme a -> ColorScheme a
+blendColorScheme pct =
+  M.unionWith $ hueBlend 2 pct
+
+renderMove colors ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
     padding = 0.04
@@ -226,10 +236,6 @@ renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> stat
       . fmap renderTile
       . V.toList
 
-    tileColor t =
-      let ix = fromEnum t
-      in rybColor $ ix + 2*(snd . ix2coord $ ix)
-
     renderTile t =
       case t of
         Nothing ->
@@ -237,12 +243,12 @@ renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> stat
         Just Blank ->
           pure $ baseTile # lw none
         Just t' ->
-          let fromColor = tileColor $ initialColors M.! t'
-              toColor = tileColor t'
-              c = hueBlend <$> uiInterpolate pctStart pctEnd <*> pure fromColor <*> pure toColor
+          let c = (M.! t') <$> colors
           in fc <$> c <*> baseTile
 
-    coords = first ((gridScale *) . fromIntegral) . second (negate . (gridScale *) . fromIntegral) . ix2coord
+    coords = first ((gridScale *) . fromIntegral)
+             . second (negate . (gridScale *) . fromIntegral)
+             . ix2coord
     (fromX, fromY) = coords fromIx
     (toX, toY) = coords toIx
 
@@ -252,21 +258,33 @@ renderMove initialColors pctStart pctEnd ps (Move fromIx toIx) = dynamic <> stat
           tile = renderTile $ ps V.!? fromIx
       in tx <*> (ty <*> tile)
 
+tileColor t =
+  let ix = fromEnum t
+  in rybColor $ ix + 2*(snd . ix2coord $ ix)
+
 renderSolution initialColors ps = movie . renderMoves 0 $ solution
   where
-    solution = fromMaybe [] $ solve ((5 *) . linearConflictScore) ps
+    solution = fromMaybe [] $ solve ((2 *) . linearConflictScore) ps
 
     stepSize = 1 / fromIntegral (traceShowId $ length solution)
+
+
+    finalColors = M.fromList [(t, tileColor t) | t <- [T1 .. T15]]
 
     renderMoves _ [] = []
     renderMoves _ [_] = []
     renderMoves i ((_,st):rest@((mv,_):_)) =
-      renderMove initialColors (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize) st mv : renderMoves (traceShowId $ i+1) rest
+      let colors =
+            blendColorScheme
+            <$> uiInterpolate (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize)
+            <*> pure initialColors
+            <*> pure finalColors
+      in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
 
 renderShuffleThenSolve = do
   let solvableShuffle = do
         s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
         if isSolvable s then pure s else solvableShuffle
   ps <- evalRandIO solvableShuffle
-  let initialColors = M.fromList . zip (V.toList ps) $ [T1 .. T15]
+  let initialColors = M.fromList . zip (V.toList ps) $ [tileColor t | t <- [T1 .. T15]]
   pure $ renderSolution initialColors ps
