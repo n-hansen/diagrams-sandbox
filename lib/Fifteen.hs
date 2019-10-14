@@ -12,10 +12,12 @@ module Fifteen (
   renderMove,
   renderSolution,
   renderShuffleThenSolve,
+  buildAnimationSequence,
   applyMove,
   manhattanScore,
   linearConflictScore
   ) where
+
 
 import           Control.Monad.Random
 import           Control.Monad.Writer
@@ -118,7 +120,7 @@ solve score ps = if isSolvable ps then findSolution else Nothing
             . (IM.updateMin (tailMay >=> guarded (not . null)) prioritizedTree :)
             . fmap (\c@(_, cNode) -> IM.singleton (depth + 1 + score cNode) [c:currentPath])
             $ children
-      (: currentPath) <$> solution
+      (: traceShow (S.size seenStates) currentPath) <$> solution
         <|> go seenStates' prioritizedTree'
 
     isSolved :: PuzzleState -> Bool
@@ -166,7 +168,7 @@ linearConflictScore st = manhattanScore st + 2 * linearConflicts
       x <- [0..3]
       pure $ do
         y <- [0..3]
-        pure $ st V.! (coord2ix x y)
+        pure $ st V.! coord2ix x y
 
 applyMove :: Move -> PuzzleState -> PuzzleState
 applyMove (Move from to) st =
@@ -209,10 +211,6 @@ hueBlend loopCount pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix
                 | abs (h0 - h1) <= 180            -> mix (h0+loopOffset) h1
                 | h0 < h1                         -> mix (h0 + 360 + loopOffset) h1
                 | otherwise                       -> mix h0 (h1 + 360 + loopOffset)
-             -- else let mixed = if h0 > h1
-             --                  then mix h0 (h1 + 360)
-             --                  else mix (h0 + 360) h1
-             --      in if mixed <= 360 then mixed else mixed - 360
 
 type ColorScheme = M.Map Tile (Colour Double)
 
@@ -266,31 +264,91 @@ tileColor t =
   let ix = fromEnum t
   in rybColor $ ix + 2*(snd . ix2coord $ ix)
 
-renderSolution :: _ => ColorScheme -> PuzzleState -> Active _
-renderSolution initialColors ps = movie . renderMoves 0 $ solution
+data Orientation = Vert | Horiz deriving (Eq, Show)
+
+opOrientation :: Orientation -> Orientation
+opOrientation Vert = Horiz
+opOrientation Horiz = Vert
+
+moveOrientation :: Move -> Orientation
+moveOrientation (Move from to) = if fx == tx then Vert else Horiz
   where
-    solution = fromMaybe [] $ solve ((2 *) . linearConflictScore) ps
+    (fx, _) = ix2coord from
+    (tx, _) = ix2coord to
+
+renderSolution :: _ => Orientation -> ColorScheme -> PuzzleState -> (Active _, Orientation)
+renderSolution firstMoveOrientation initialColors' ps = (, lastMoveOrientation) . movie . renderMoves 0 $ solution
+  where
+    (solution, initialColors, finalColors) =
+      fromMaybe ([], mempty, mempty)
+      $ fixOrientation initialColors' finalColors' =<< solve ((3 *) . linearConflictScore) ps
+
+    lastMoveOrientation =
+      fromMaybe Horiz
+      $ moveOrientation
+      . fst
+      <$> lastMay solution
+
+    transposeIx ix = let (x,y) = ix2coord ix in coord2ix y x
+
+    fixOrientation :: ColorScheme -> ColorScheme -> [(Move, PuzzleState)]
+                   -> Maybe ([(Move, PuzzleState)], ColorScheme, ColorScheme)
+    fixOrientation ics fcs s = do
+      fmo <- moveOrientation . fst <$> (headMay =<< tailMay s)
+      pure $ if fmo == firstMoveOrientation
+             then (s, ics, fcs)
+             else ( fmap
+                    (\(Move from to, mps) ->
+                       ( Move (transposeIx from) (transposeIx to)
+                       , runST $ do
+                           tps <- V.thaw mps
+                           forM_ [(x,y) | x <- [0..2], y <- [x..3]]
+                             $ \(x,y) ->
+                                 VM.swap tps (coord2ix x y) (coord2ix y x)
+                           V.freeze tps
+                       )
+                    ) s
+                  , -- colors in the initial configuration are remapped based on the starting arrangement
+                    M.mapKeys
+                    ( (ps V.!)
+                      . transposeIx
+                      . fromMaybe 0
+                      . flip V.findIndex ps
+                      . (==)
+                    ) ics
+                  , -- colors in the final configuration are remapped based on a solved board
+                    M.mapKeys (toEnum . transposeIx . fromEnum) fcs
+                  )
 
     stepSize = 1 / fromIntegral (traceShowId $ length solution)
 
-
-    finalColors = M.fromList [(t, tileColor t) | t <- [T1 .. T15]]
+    finalColors' = M.fromList [(t, tileColor t) | t <- [T1 .. T15]]
 
     renderMoves _ [] = []
     renderMoves _ [_] = []
     renderMoves i ((_,st):rest@((mv,_):_)) =
-      let colors =
-            blendColorScheme
-            <$> uiInterpolate (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize)
-            <*> pure initialColors
-            <*> pure finalColors
-      in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
+     let colors =
+           blendColorScheme
+           <$> uiInterpolate (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize)
+           <*> pure initialColors
+           <*> pure finalColors
+     in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
 
-renderShuffleThenSolve :: _ => IO (Active _)
-renderShuffleThenSolve = do
+renderShuffleThenSolve :: _ => Orientation -> IO (Active _, Orientation)
+renderShuffleThenSolve orientation = do
   let solvableShuffle = do
         s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
         if isSolvable s then pure s else solvableShuffle
   ps <- evalRandIO solvableShuffle
   let initialColors = M.fromList . zip (V.toList ps) $ [tileColor t | t <- [T1 .. T15]]
-  pure $ renderSolution initialColors ps
+  pure $ renderSolution orientation initialColors ps
+
+buildAnimationSequence :: _ => Int -> IO (Active _)
+buildAnimationSequence = fmap movie . go Horiz
+  where
+    go lastOrientation left =
+      if left <= 0
+      then pure []
+      else do
+      (shuf, orientation) <- renderShuffleThenSolve $ opOrientation lastOrientation
+      (:) <$> pure shuf <*> go orientation (left - 1)

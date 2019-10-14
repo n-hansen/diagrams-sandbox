@@ -26,6 +26,7 @@ default-extensions:
 - NamedFieldPuns
 - LambdaCase
 - MultiWayIf
+- TupleSections
 - GeneralizedNewtypeDeriving
 
 dependencies:
@@ -48,6 +49,7 @@ dependencies:
 - MonadRandom
 - random-shuffle
 - data-default
+- monad-loops
 
 library:
   source-dirs: lib
