@@ -5,4 +5,4 @@ import Fifteen
 import Diagrams.Backend.Cairo.CmdLine
 
 main :: IO ()
-main = buildAnimationSequence 5 >>= animMain
+main = buildAnimationSequence 3 >>= animMain

@@ -306,7 +306,7 @@ renderSolution firstMoveOrientation initialColors' finalColors' ps = (, lastMove
   where
     (solution, initialColors, finalColors) =
       fromMaybe ([], mempty, mempty)
-      $ fixOrientation initialColors' finalColors' =<< solve ((`div` 2) . (3 *) . linearConflictScore) ps
+      $ fixOrientation initialColors' finalColors' =<< solve ((4 *) . linearConflictScore) ps
 
     lastMoveOrientation =
       fromMaybe Horiz
@@ -372,14 +372,18 @@ renderShuffleThenSolve initialColors' finalColors' orientation = do
 
 buildAnimationSequence :: _ => Int -> IO (Active _)
 buildAnimationSequence count = do
-  colorSequence <- evalRandIO . sequence . cycle . take (count - 1) $ repeat randomColorScheme
-  let colorPairs = zip colorSequence . fromMaybe [] $ tailMay colorSequence
-  movie <$> go initialOrientation count colorPairs
+  colorSequence <- evalRandIO . fmap cycle . sequence . take count $ repeat randomColorScheme
+  movie <$> go initialOrientation count colorSequence
   where
     initialOrientation = Horiz
-    go lastOrientation left ((ic, fc):cSeq) =
-      if left <= 0 && lastOrientation == initialOrientation
-      then pure []
-      else do
+    go _ _ [] = pure []
+    go _ _ [_] = pure []
+    go lastOrientation left (ic:cSeq@(fc:_)) = do
       (shuf, orientation) <- renderShuffleThenSolve ic fc $ opOrientation lastOrientation
-      (:) <$> pure shuf <*> go orientation (left - 1) cSeq
+      let continueWith = ((:) <$> pure shuf <*>)
+      if left > 1
+        then continueWith $ go orientation (left - 1) cSeq
+        else if orientation == initialOrientation
+             then continueWith $ pure []
+             else traceShow "bad orientation, retrying last step" $
+                  go lastOrientation left (ic:cSeq)
