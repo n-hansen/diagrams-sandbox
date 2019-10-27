@@ -81,6 +81,14 @@ executables:
     - -with-rtsopts=-N
     - -O2
 
+  spirograph:
+    source-dirs: src
+    main: SpirographMain.hs
+    dependencies:
+    - diagrams-sandbox
+    ghc-options:
+    - -main-is SpirographMain.main
+
 benchmarks:
   fifteen-benchmarks:
     source-dirs: benchmark
