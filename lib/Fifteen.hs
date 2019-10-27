@@ -119,7 +119,7 @@ solve score ps = if isSolvable ps then findSolution else Nothing
             . (IM.updateMin (tailMay >=> guarded (not . null)) prioritizedTree :)
             . fmap (\c@(_, cNode) -> IM.singleton (depth + 1 + score cNode) [c:currentPath])
             $ children
-      (: traceShow (S.size seenStates) currentPath) <$> solution
+      (: traceShow (S.size seenStates, length currentPath) currentPath) <$> solution
         <|> go seenStates' prioritizedTree'
 
     isSolved :: PuzzleState -> Bool
@@ -222,8 +222,9 @@ renderMove :: _ => Active ColorScheme -> PuzzleState -> Move -> Active _
 renderMove colors ps (Move fromIx toIx) = dynamic <> static
   where
     gridScale = 2
-    padding = 0.04
-    baseTile = lineJoin LineJoinRound . square $ gridScale - padding
+    padding = 0.015
+    tileSize = gridScale - padding
+    baseTile = roundedRect tileSize tileSize (gridScale * 0.06)
 
     static =
       vsep padding
@@ -288,10 +289,11 @@ randomColorScheme = do
     colorSchemes = [ Purples
                    , Blues
                    , Greens
-                   , Oranges
+                   --, Oranges
                    , Reds
-                   , Greys
+                   --, Greys
                    , YlGn
+                   , OrRd
                    , YlGnBu
                    , GnBu
                    , BuPu
@@ -306,7 +308,7 @@ renderSolution firstMoveOrientation initialColors' finalColors' ps = (, lastMove
   where
     (solution, initialColors, finalColors) =
       fromMaybe ([], mempty, mempty)
-      $ fixOrientation initialColors' finalColors' =<< solve ((4 *) . linearConflictScore) ps
+      $ fixOrientation initialColors' finalColors' =<< solve ((`div` 2) . (5 *) . linearConflictScore) ps
 
     lastMoveOrientation =
       fromMaybe Horiz
@@ -345,7 +347,7 @@ renderSolution firstMoveOrientation initialColors' finalColors' ps = (, lastMove
                     M.mapKeys (toEnum . transposeIx . fromEnum) fcs
                   )
 
-    stepSize = 1 / fromIntegral (traceShowId $ length solution)
+    stepSize = 1 / (fromIntegral . length $ solution)
 
     renderMoves _ [] = []
     renderMoves _ [_] = []
@@ -355,7 +357,7 @@ renderSolution firstMoveOrientation initialColors' finalColors' ps = (, lastMove
            <$> uiInterpolate (Ease.sineInOut $ i*stepSize) (Ease.sineInOut $ (i+1)*stepSize)
            <*> pure initialColors
            <*> pure finalColors
-     in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
+     in renderMove colors st mv : renderMoves (i+1) rest
 
 renderShuffleThenSolve :: _ => ColorScheme' -> ColorScheme' -> Orientation -> IO (Active _, Orientation)
 renderShuffleThenSolve initialColors' finalColors' orientation = do
@@ -363,11 +365,8 @@ renderShuffleThenSolve initialColors' finalColors' orientation = do
         s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
         if isSolvable s then pure s else solvableShuffle
   ps <- evalRandIO solvableShuffle
-  -- let initialColors = M.fromList . zip (V.toList ps) $ [tileColor t | t <- [T1 .. T15]]
   let initialColors = initialColors' $ V.toList ps
       finalColors = finalColors' [T1 .. T15]
-  -- initialColors <- evalRandIO randomColorScheme <*> pure (V.toList ps)
-  -- finalColors <- evalRandIO randomColorScheme <*> pure [T1 .. T15]
   pure $ renderSolution orientation initialColors finalColors ps
 
 buildAnimationSequence :: _ => Int -> IO (Active _)
@@ -380,7 +379,7 @@ buildAnimationSequence count = do
     go _ _ [_] = pure []
     go lastOrientation left (ic:cSeq@(fc:_)) = do
       (shuf, orientation) <- renderShuffleThenSolve ic fc $ opOrientation lastOrientation
-      let continueWith = ((:) <$> pure shuf <*>)
+      let continueWith = fmap (shuf :)
       if left > 1
         then continueWith $ go orientation (left - 1) cSeq
         else if orientation == initialOrientation
