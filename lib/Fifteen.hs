@@ -83,8 +83,7 @@ isSolvable ps = even $ permutationParity + emptySpaceParity
             pivot <- read hi
             i <- lift $ newSTRef lo
             forM_ [lo..hi] $ \j -> do
-              vec_j <- read j
-              when (vec_j < pivot) $ do
+              whenM ((<) <$> read j <*> pure pivot) $ do
                 i' <- lift $ readSTRef i
                 swap i' j
                 lift $ modifySTRef i (+ 1)
