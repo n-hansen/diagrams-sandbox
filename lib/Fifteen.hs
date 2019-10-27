@@ -21,7 +21,7 @@ module Fifteen (
 
 import           Control.Monad.Random
 import           Control.Monad.Writer
-import           Data.Colour.Palette.ColorSet
+import           Data.Colour.Palette.BrewerSet
 import           Data.Colour.RGBSpace (uncurryRGB)
 import           Data.Colour.RGBSpace.HSL
 import qualified Data.IntMap.Strict     as IM
@@ -212,6 +212,7 @@ hueBlend loopCount pct start end = uncurryRGB sRGB $ hsl hBlend (mix s0 s1) (mix
                 | otherwise                       -> mix h0 (h1 + 360 + loopOffset)
 
 type ColorScheme = M.Map Tile (Colour Double)
+type ColorScheme' = [Tile] -> ColorScheme
 
 blendColorScheme :: Double -> ColorScheme -> ColorScheme -> ColorScheme
 blendColorScheme pct =
@@ -244,7 +245,8 @@ renderMove colors ps (Move fromIx toIx) = dynamic <> static
           pure $ baseTile # lw none
         Just t' ->
           let c = (M.! t') <$> colors
-          in fc <$> c <*> baseTile
+          in -- (<>) (pure $ text $ show t') $
+             fc <$> c <*> baseTile
 
     coords = first ((gridScale *) . fromIntegral)
              . second (negate . (gridScale *) . fromIntegral)
@@ -258,11 +260,6 @@ renderMove colors ps (Move fromIx toIx) = dynamic <> static
           tile = renderTile $ ps V.!? fromIx
       in tx <*> (ty <*> tile)
 
-tileColor :: Tile -> Colour Double
-tileColor t =
-  let ix = fromEnum t
-  in rybColor $ ix + 2*(snd . ix2coord $ ix)
-
 data Orientation = Vert | Horiz deriving (Eq, Show)
 
 opOrientation :: Orientation -> Orientation
@@ -275,12 +272,41 @@ moveOrientation (Move from to) = if fx == tx then Vert else Horiz
     (fx, _) = ix2coord from
     (tx, _) = ix2coord to
 
-renderSolution :: _ => Orientation -> ColorScheme -> PuzzleState -> (Active _, Orientation)
-renderSolution firstMoveOrientation initialColors' ps = (, lastMoveOrientation) . movie . renderMoves 0 $ solution
+randomColorScheme :: MonadRandom m => m ColorScheme'
+randomColorScheme = do
+  shouldTranspose <- getRandom
+  schemes <- shuffleM colorSchemes
+  pure $ \ordering -> M.fromList
+                      . zip ordering
+                      . mconcat
+                      . (if shouldTranspose then transpose else identity)
+                      . fmap rowColors
+                      . take 4
+                      $ schemes
+  where
+    rowColors = take 4 . reverse . flip brewerSet 5
+    colorSchemes = [ Purples
+                   , Blues
+                   , Greens
+                   , Oranges
+                   , Reds
+                   , Greys
+                   , YlGn
+                   , YlGnBu
+                   , GnBu
+                   , BuPu
+                   , PuRd
+                   , RdPu
+                   ]
+
+
+
+renderSolution :: _ => Orientation -> ColorScheme -> ColorScheme -> PuzzleState -> (Active _, Orientation)
+renderSolution firstMoveOrientation initialColors' finalColors' ps = (, lastMoveOrientation) . movie . renderMoves 0 $ solution
   where
     (solution, initialColors, finalColors) =
       fromMaybe ([], mempty, mempty)
-      $ fixOrientation initialColors' finalColors' =<< solve ((3 *) . linearConflictScore) ps
+      $ fixOrientation initialColors' finalColors' =<< solve ((`div` 2) . (3 *) . linearConflictScore) ps
 
     lastMoveOrientation =
       fromMaybe Horiz
@@ -321,8 +347,6 @@ renderSolution firstMoveOrientation initialColors' ps = (, lastMoveOrientation) 
 
     stepSize = 1 / fromIntegral (traceShowId $ length solution)
 
-    finalColors' = M.fromList [(t, tileColor t) | t <- [T1 .. T15]]
-
     renderMoves _ [] = []
     renderMoves _ [_] = []
     renderMoves i ((_,st):rest@((mv,_):_)) =
@@ -333,21 +357,29 @@ renderSolution firstMoveOrientation initialColors' ps = (, lastMoveOrientation) 
            <*> pure finalColors
      in renderMove colors st mv : renderMoves (traceShowId $ i+1) rest
 
-renderShuffleThenSolve :: _ => Orientation -> IO (Active _, Orientation)
-renderShuffleThenSolve orientation = do
+renderShuffleThenSolve :: _ => ColorScheme' -> ColorScheme' -> Orientation -> IO (Active _, Orientation)
+renderShuffleThenSolve initialColors' finalColors' orientation = do
   let solvableShuffle = do
         s <- V.fromList . (<> [Blank]) <$> shuffleM [T1 .. T15]
         if isSolvable s then pure s else solvableShuffle
   ps <- evalRandIO solvableShuffle
-  let initialColors = M.fromList . zip (V.toList ps) $ [tileColor t | t <- [T1 .. T15]]
-  pure $ renderSolution orientation initialColors ps
+  -- let initialColors = M.fromList . zip (V.toList ps) $ [tileColor t | t <- [T1 .. T15]]
+  let initialColors = initialColors' $ V.toList ps
+      finalColors = finalColors' [T1 .. T15]
+  -- initialColors <- evalRandIO randomColorScheme <*> pure (V.toList ps)
+  -- finalColors <- evalRandIO randomColorScheme <*> pure [T1 .. T15]
+  pure $ renderSolution orientation initialColors finalColors ps
 
 buildAnimationSequence :: _ => Int -> IO (Active _)
-buildAnimationSequence = fmap movie . go Horiz
+buildAnimationSequence count = do
+  colorSequence <- evalRandIO . sequence . cycle . take (count - 1) $ repeat randomColorScheme
+  let colorPairs = zip colorSequence . fromMaybe [] $ tailMay colorSequence
+  movie <$> go initialOrientation count colorPairs
   where
-    go lastOrientation left =
-      if left <= 0
+    initialOrientation = Horiz
+    go lastOrientation left ((ic, fc):cSeq) =
+      if left <= 0 && lastOrientation == initialOrientation
       then pure []
       else do
-      (shuf, orientation) <- renderShuffleThenSolve $ opOrientation lastOrientation
-      (:) <$> pure shuf <*> go orientation (left - 1)
+      (shuf, orientation) <- renderShuffleThenSolve ic fc $ opOrientation lastOrientation
+      (:) <$> pure shuf <*> go orientation (left - 1) cSeq
