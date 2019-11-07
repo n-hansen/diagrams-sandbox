@@ -88,6 +88,10 @@ executables:
     - diagrams-sandbox
     ghc-options:
     - -main-is SpirographMain.main
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
+    - -O2
 
 benchmarks:
   fifteen-benchmarks:

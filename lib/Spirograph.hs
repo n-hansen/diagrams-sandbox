@@ -2,6 +2,8 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-partial-type-signatures #-}
 module Spirograph where
 
+import           Data.Colour.RGBSpace (uncurryRGB)
+import           Data.Colour.RGBSpace.HSL
 
 -- spirograph fixed rolling = cubicSpline False points
 --   where
@@ -17,8 +19,6 @@ module Spirograph where
 --       if | distanceLeft <= 0 -> []
 --          |
 
-
---{-
 
 data Placement = Placement { fixedContactPoint :: P2 Double
                            , rollingContactPoint :: P2 Double
@@ -75,12 +75,15 @@ spirograph fixed rolling = cubicSpline False points
           penLocation = rotateAround (rolling `atParam` rollingParam) rotationAmount origin
           penOffsetFromContactPoint = (rolling `atParam` rollingParam) .-. penLocation
       in (fixed `atParam` fixedParam) .+^ penOffsetFromContactPoint
---}
 
 example :: _ => QDiagram _ V2 Double Any
-example = curve `atop` f
+example = curve
+          # explodePath
+          # mconcat
+          # zipWith lc [uncurryRGB sRGB $ hsl h 1 0.6 | h <- [0,1..]]
+          # mconcat
   where
     f = circle 2
     r = circle 1.1 # translateY 0.288
     place x = origin `placeAt` computePlacement f 0 r 0 x
-    curve = strokePath . fromVertices . fmap place $ [0,0.5..80]
+    curve = fromVertices . fmap place $ [0,0.1..70]
