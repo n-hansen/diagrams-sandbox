@@ -94,7 +94,7 @@ executables:
     - -O2
 
 benchmarks:
-  fifteen-benchmarks:
+  benchmarks:
     source-dirs: benchmark
     main: Main.hs
     dependencies:

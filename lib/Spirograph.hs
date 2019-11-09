@@ -40,10 +40,13 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
   # rotate rollingRotation
   # translate (fixedContactPoint .-. origin)
 
-spirograph fixedCurve rollingCurve penLocation distance stepSize = curve
+spirograph' :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
+spirograph' fixedCurve rollingCurve penLocation distance stepSize = curve
   where
     placePen x = penLocation `placeAt` computePlacement fixedCurve 0 rollingCurve 0 x
-    curve = fromVertices . fmap placePen $ [0,stepSize..distance]
+    curve = placePen <$> [0,stepSize..distance]
+
+spirograph f r p d s = fromVertices $ spirograph' f r p d s
 
 example :: _ => QDiagram _ V2 Double Any
 example = curve
