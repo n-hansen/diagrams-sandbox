@@ -5,21 +5,6 @@ module Spirograph where
 import           Data.Colour.RGBSpace (uncurryRGB)
 import           Data.Colour.RGBSpace.HSL
 
--- spirograph fixed rolling = cubicSpline False points
---   where
---     stepSize = 0.01
---     totalLength = 1
-
---     points = go totalLength 0 (cycle . pathTrails $ fixed) 0 (cycle . pathTrails $ rolling)
-
---     go distanceLeft fixedOffset (fixedHead:fixedTail) rollingOffset (rollingHead:rollingTail) =
---       let fixedTraveled = fixedHead `atParam` fixedOffset
---           rollingTraveled = rollingHead `atParam` rollingOffset
-
---       if | distanceLeft <= 0 -> []
---          |
-
-
 data Placement = Placement { fixedContactPoint :: P2 Double
                            , rollingContactPoint :: P2 Double
                            , rollingRotation :: Angle Double
@@ -55,26 +40,10 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
   # rotate rollingRotation
   # translate (fixedContactPoint .-. origin)
 
-spirograph :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> Path V2 Double
-spirograph fixed rolling = cubicSpline False points
+spirograph fixedCurve rollingCurve penLocation distance stepSize = curve
   where
-    stepSize = 0.1
-    totalLength = 30
-
-    points = go 0
-
-    go dist | dist > totalLength = []
-            | otherwise = pointAt dist : go (dist + stepSize)
-
-    pointAt dist =
-      let fixedParam = stdArcLengthToParam fixed dist
-          rollingParam = stdArcLengthToParam rolling dist
-          fixedTangent = tangentAtParam fixed fixedParam
-          rollingTangent = tangentAtParam rolling rollingParam
-          rotationAmount = signedAngleBetween rollingTangent fixedTangent
-          penLocation = rotateAround (rolling `atParam` rollingParam) rotationAmount origin
-          penOffsetFromContactPoint = (rolling `atParam` rollingParam) .-. penLocation
-      in (fixed `atParam` fixedParam) .+^ penOffsetFromContactPoint
+    placePen x = penLocation `placeAt` computePlacement fixedCurve 0 rollingCurve 0 x
+    curve = fromVertices . fmap placePen $ [0,stepSize..distance]
 
 example :: _ => QDiagram _ V2 Double Any
 example = curve
@@ -85,5 +54,4 @@ example = curve
   where
     f = circle 2
     r = circle 1.1 # translateY 0.288
-    place x = origin `placeAt` computePlacement f 0 r 0 x
-    curve = fromVertices . fmap place $ [0,0.1..70]
+    curve = spirograph f r origin 70 0.1
