@@ -105,16 +105,15 @@ benchmarks:
     - -threaded
     - -with-rtsopts=-N
 
-# tests:
-#   diagrams-sandbox-test-suite:
-#     source-dirs: test-suite
-#     main: Main.hs
-#     dependencies:
-#     - base
-#     - diagrams-sandbox
-#     - tasty
-#     - tasty-hspec
-#     ghc-options:
-#     - -rtsopts
-#     - -threaded
-#     - -with-rtsopts=-N
+tests:
+  diagrams-sandbox-test-suite:
+    source-dirs: test-suite
+    main: Main.hs
+    dependencies:
+    - diagrams-sandbox
+    - tasty
+    - tasty-hspec
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -with-rtsopts=-N
