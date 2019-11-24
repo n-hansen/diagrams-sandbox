@@ -21,8 +21,8 @@ spirographSpec :: Spec
 spirographSpec =
   describe "spirograph" $ do
     describe "algebraic curve tracing" $ do
-      let epsilon = 5e-2
-      let shouldVanishOn points eqn = fmap (abs . eqn) points `shouldSatisfy` all (epsilon >) . sort
+      let epsilon = 4e-2
+      let shouldVanishOn points eqn = (sortOn negate $ fmap (abs . eqn) points) `shouldSatisfy` all (epsilon >)
 
       it "generates the points of a circle" $ do
         let r_fix = 3

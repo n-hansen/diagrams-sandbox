@@ -12,11 +12,12 @@ import           Data.Colour.RGBSpace (uncurryRGB)
 import           Data.Colour.RGBSpace.HSL
 
 
+-- | Information for how to transform rolling coordinates to fixed coordinates
 data Placement = Placement { fixedContactPoint :: P2 Double
                            , rollingContactPoint :: P2 Double
                            , rollingRotation :: Angle Double
                            }
-               -- | BoundaryPlacement { fixedContactPoint1 :: P2 Double
+               -- -- | BoundaryPlacement { fixedContactPoint1 :: P2 Double
                --                     , rollingContactPoint1 :: P2 Double
                --                     , rollingRotation1 :: Angle Double
                --                     , fixedContactPoint2 :: P2 Double
@@ -33,78 +34,98 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
 
 spirograph f r p d s = fromVertices $ spirographPoints f r p d s
 
-data TrailTraversal = TT { currSegment :: Located (Segment Closed V2 Double)
-                         , currSegmentIx :: Int
-                         , currDistLeft :: Double
-                         , nextSegments :: [(Int,Located (Segment Closed V2 Double), Double)]
+-- | State store for a traversal of a trail
+data TrailTraversal = TT { ttCurrSegment :: Located (Segment Closed V2 Double)
+                         , ttCurrSegmentLength :: Double
+                         , ttCurrSegmentIx :: SegmentId
+                         , ttCurrDistLeft :: Double
+                         , ttNextSegments :: [(SegmentId, Located (Segment Closed V2 Double), Double)]
                          }
+
+-- | Each sampled point corresponds to a specific distance (from the end) of our traversal.
+newtype SampleId = SmpId { unSmpId :: Double } deriving (Eq)
+instance Ord SampleId where
+  compare = compare `on` negate . unSmpId
+
+newtype SegmentId = SegId Int deriving (Eq, Ord, Enum)
+
+-- | Point on a specific segment that we want to sample at.
+data SegmentSamplePoint = SSP { sspSegment :: Located (Segment Closed V2 Double)
+                              , sspSegmentLength :: Double
+                              , sspSegmentIx :: SegmentId
+                              , sspSegmentDistanceLeft :: Double
+                              , sspSampleId :: SampleId
+                              }
+
+-- | Reified sample point from a segment/trail
+data ComputedSamplePoint = CSP { cspPoint :: P2 Double
+                               , cspTangent :: V2 Double
+                               , cspSampleId :: SampleId
+                               }
 
 spirographPoints :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
 spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt penLocation <$> placements
   where
-    placements = fmap computePlacement
-                 . uncurry zip
+    placements = uncurry (zipWith computePlacement)
                  . (computeSegmentPoints *** computeSegmentPoints)
                  . unzip
-                 . fmap (\(ptId,fSeg,fSegIx,fDistLeft,rSeg,rSegIx,rDistLeft) -> ( (fSegIx, ptId, fSeg, fDistLeft)
-                                                                                , (rSegIx, ptId, rSeg, rDistLeft)
-                                                                                )
-                        )
                  $ samplePoints
 
-    samplePoints :: [(Double, Located (Segment Closed V2 Double), Int, Double, Located (Segment Closed V2 Double), Int, Double)]
+    samplePoints :: [(SegmentSamplePoint, SegmentSamplePoint)]
     samplePoints = buildSamplePoints 0 distance (initTrailTraversal fixedCurve) (initTrailTraversal rollingCurve)
 
     advanceAndBuildSamplePoints toGo fixedTraversal rollingTraversal =
-      let advancement = min toGo $ minimum [currDistLeft fixedTraversal, currDistLeft rollingTraversal, stepSize]
+      let advancement = min toGo $ minimum [ttCurrDistLeft fixedTraversal, ttCurrDistLeft rollingTraversal, stepSize]
       in buildSamplePoints advancement (toGo - advancement) fixedTraversal rollingTraversal
 
     buildSamplePoints advancement toGo fixedTraversal rollingTraversal =
-      let (fSeg, fSegIx, fDistLeft, fTrav) = stepTrailTraversalBy fixedTraversal advancement
-          (rSeg, rSegIx, rDistLeft, rTrav) = stepTrailTraversalBy rollingTraversal advancement
-      in (toGo, fSeg, fSegIx, fDistLeft, rSeg, rSegIx, rDistLeft) : if toGo <= 0 then [] else advanceAndBuildSamplePoints toGo fTrav rTrav
+      let wrapSSP (seg, segLen, segIx, distLeft, trav) = (SSP seg segLen segIx distLeft (SmpId toGo), trav)
+          (fSSP, fTrav) = wrapSSP $ stepTrailTraversalBy fixedTraversal advancement
+          (rSSP, rTrav) = wrapSSP $ stepTrailTraversalBy rollingTraversal advancement
+      in (fSSP, rSSP) : if toGo <= 0 then [] else advanceAndBuildSamplePoints toGo fTrav rTrav
 
     initTrailTraversal curve = let (initIx,initSeg,initDist):segs = cycle
                                                                     . fmap (\(ix,seg) -> (ix,seg,stdArcLength seg))
-                                                                    . zip [0..]
+                                                                    . zip [SegId 0..]
                                                                     . trailLocSegments
                                                                     $ curve
-                               in TT initSeg initIx initDist segs
+                               in TT initSeg initDist initIx initDist segs
 
-    stepTrailTraversalBy tt@TT{currSegment,currSegmentIx,currDistLeft,nextSegments} delta =
-      let currDistLeft' = currDistLeft - delta
-          (nextSegmentIx, nextSegment, nextDistLeft):segs = nextSegments
-          nextDistLeft' = nextDistLeft + currDistLeft'
-      in if delta < currDistLeft
-         then (currSegment, currSegmentIx, currDistLeft', tt {currDistLeft = currDistLeft'})
-         else (nextSegment, nextSegmentIx, nextDistLeft', TT nextSegment nextSegmentIx nextDistLeft' segs)
+    stepTrailTraversalBy tt@TT{ttCurrSegment,ttCurrSegmentLength,ttCurrSegmentIx,ttCurrDistLeft,ttNextSegments} delta =
+      let currDistLeft' = ttCurrDistLeft - delta
+          (nextSegmentIx, nextSegment, nextSegmentLength):segs = ttNextSegments
+          nextDistLeft' = nextSegmentLength + currDistLeft'
+      in if delta < ttCurrDistLeft
+         then (ttCurrSegment, ttCurrSegmentLength, ttCurrSegmentIx, currDistLeft', tt {ttCurrDistLeft = currDistLeft'})
+         else (nextSegment, nextSegmentLength, nextSegmentIx, nextDistLeft', TT nextSegment nextSegmentLength nextSegmentIx nextDistLeft' segs)
 
-    computeSegmentPoints = sortOn (\(ptId,_,_) -> -ptId)
+    computeSegmentPoints = sortOn cspSampleId
                            . concatMap computeSingleSegmentPoints
-                           . groupBy (on (==) $ \(ix,_,_,_) -> ix)
-                           . sortOn (\(ix,_,_,d) -> (ix,-d))
+                           . groupBy ((==) `on` sspSegmentIx)
+                           . sortOn (sspSegmentIx &&& negate . sspSegmentDistanceLeft)
 
     computeSingleSegmentPoints [] = []
-    computeSingleSegmentPoints pts'@((_, _, fullSeg,_):_) =
-      let fullSegLen = stdArcLength fullSeg
-          go [] _ _ _ = []
-          go allPts@((ptId,pt):pts) allSegs@((seg,segLen,segPLen):segs) p d =
-            let entryAtParam atP = (ptId, seg `atParam` atP, seg `tangentAtParam` atP)
+    computeSingleSegmentPoints pts'@(SSP{sspSegment=fullSeg,sspSegmentLength=fullSegLen}:_) =
+      let go [] _ _ _ = []
+          go allPts@(SSP{sspSegmentDistanceLeft,sspSampleId}:pts) allSegs@((seg,segLen,segPLen):segs) p d =
+            let pt = fullSegLen - sspSegmentDistanceLeft
+                entryAtParam atP = CSP (seg `atParam` atP) (seg `tangentAtParam` atP) sspSampleId
                 closeEnough x = abs (pt - x) < stdTolerance
             in if | closeEnough d  -> entryAtParam p : go pts allSegs p d
                   | d + segLen < pt -> go allPts segs (p+segPLen) (d+segLen)
                   | closeEnough $ d + segLen -> entryAtParam (p+segPLen) : go pts segs (p+segPLen) (d+segLen)
                   | otherwise -> let (l,h) = seg `splitAtParam` 0.5
                                      lLen = stdArcLength l
-                                     hLen = stdArcLength h
+                                     hLen = segLen - lLen -- much cheaper than calling stdArcLength, but could grow our error over time...
                                  in -- traceShow (pt, segLen, p, d) $
                                     go allPts ((l,lLen,segPLen/2):(h,hLen,segPLen/2):segs) p d
       in go
-         (fmap (\(_,ptId,_,d) -> (ptId,fullSegLen - d)) pts')
+         pts'
          [(fullSeg, fullSegLen, 1)]
          0 0
 
-    computePlacement ((_,fPt,fTan),(_,rPt,rTan)) = Placement fPt rPt $ signedAngleBetween fTan rTan
+    computePlacement CSP{cspPoint=fPt, cspTangent=fTan} CSP{cspPoint=rPt, cspTangent=rTan} =
+      Placement fPt rPt $ signedAngleBetween fTan rTan
 
 
 
