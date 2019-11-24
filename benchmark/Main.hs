@@ -36,5 +36,5 @@ main = defaultMain groups
 
     spirographGroup = bgroup "spirograph"
                       [ bench "render two circles"
-                        $ nf ( spirograph'' (circle 2) (circle 1.1 # translate 0.288) origin 10) 0.5
+                        $ nf ( spirographPoints (circle 2) (circle 1.1 # translate 0.288) origin 10) 0.5
                       ]

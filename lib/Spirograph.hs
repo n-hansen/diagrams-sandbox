@@ -1,13 +1,15 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-partial-type-signatures -fno-warn-missing-signatures #-}
-module Spirograph where
+module Spirograph
+  ( spirograph
+  , spirographPoints
+  , example
+  ) where
 
+import           Control.Arrow
 import           Data.Colour.RGBSpace (uncurryRGB)
 import           Data.Colour.RGBSpace.HSL
-import qualified Data.Map.Strict as M
-
-
 
 
 data Placement = Placement { fixedContactPoint :: P2 Double
@@ -22,29 +24,6 @@ data Placement = Placement { fixedContactPoint :: P2 Double
                --                     , rollingRotation2 :: Angle Double
                --                     }deriving Show
 
-computePlacement :: Located (Trail V2 Double)-> Double -> Located (Trail V2 Double) -> Double -> Double -> Placement
-computePlacement fixedTrail fixedOffset rollingTrail rollingOffset distance
-  | shouldWrap && fixedDistanceLeft < rollingDistanceLeft = computePlacement
-                                                            fixedTrail 0
-                                                            rollingTrail (rollingOffset + fixedDistanceLeft)
-                                                            (distance - fixedDistanceLeft)
-  | shouldWrap = computePlacement
-                 fixedTrail (fixedOffset + rollingDistanceLeft)
-                 rollingTrail 0
-                 (distance - rollingDistanceLeft)
-  | otherwise = Placement fixedContactPoint rollingContactPoint rollingRotation
-  where
-    fixedDistanceLeft = stdArcLength fixedTrail - fixedOffset
-    rollingDistanceLeft = stdArcLength rollingTrail - rollingOffset
-    shouldWrap = fixedDistanceLeft < distance || rollingDistanceLeft < distance
-    fixedParam = stdArcLengthToParam fixedTrail (fixedOffset + distance)
-    fixedContactPoint = fixedTrail `atParam` fixedParam
-    fixedTangent = tangentAtParam fixedTrail fixedParam
-    rollingParam = stdArcLengthToParam rollingTrail (rollingOffset + distance)
-    rollingContactPoint = rollingTrail `atParam` rollingParam
-    rollingTangent = tangentAtParam rollingTrail rollingParam
-    rollingRotation = signedAngleBetween fixedTangent rollingTangent
-
 placeAt :: _ => _ -> Placement -> _
 placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation} =
   thing
@@ -52,13 +31,7 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
   # rotate rollingRotation
   # translate (fixedContactPoint .-. origin)
 
-spirograph' :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
-spirograph' fixedCurve rollingCurve penLocation distance stepSize = curve
-  where
-    placePen x = penLocation `placeAt` computePlacement fixedCurve 0 rollingCurve 0 x
-    curve = placePen <$> [0,stepSize..distance]
-
-spirograph f r p d s = fromVertices $ spirograph'' f r p d s
+spirograph f r p d s = fromVertices $ spirographPoints f r p d s
 
 data TrailTraversal = TT { currSegment :: Located (Segment Closed V2 Double)
                          , currSegmentIx :: Int
@@ -147,15 +120,5 @@ example = curve
           # mconcat
   where
     f = circle 2
-    r = circle 1.1 # translateY 0.288
-    curve = spirograph f r origin 60 0.1
-
-example2 :: IO ()
-example2 = traverse_ {-   (\(d,_,fix,flen,_,six,slen)-> print $(d,fix,flen,six,slen)) -} print $ sort curve
-  where
-    f = circle 2
-    r = circle 1.1 # translateY 0.288
-    curve = spirograph'' f r origin 20 0.8
-
-
-test = undefined
+    r = circle 1.54 # translateY 0.488
+    curve = spirograph f r origin 100 0.1
