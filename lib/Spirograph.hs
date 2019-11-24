@@ -39,28 +39,19 @@ data TrailTraversal = TT { currSegment :: Located (Segment Closed V2 Double)
                          , nextSegments :: [(Int,Located (Segment Closed V2 Double), Double)]
                          }
 
-initTrailTraversal :: Located (Trail V2 Double) -> TrailTraversal
-initTrailTraversal curve = TT initSeg initIx initDist segs
+spirographPoints :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
+spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt penLocation <$> placements
   where
-    (initIx,initSeg,initDist):segs = cycle
-                                     . fmap (\(ix,seg) -> (ix,seg,stdArcLength seg))
-                                     . zip [0..]
-                                     . trailLocSegments
-                                     $ curve
+    placements = fmap computePlacement
+                 . uncurry zip
+                 . (computeSegmentPoints *** computeSegmentPoints)
+                 . unzip
+                 . fmap (\(ptId,fSeg,fSegIx,fDistLeft,rSeg,rSegIx,rDistLeft) -> ( (fSegIx, ptId, fSeg, fDistLeft)
+                                                                                , (rSegIx, ptId, rSeg, rDistLeft)
+                                                                                )
+                        )
+                 $ samplePoints
 
-stepTrailTraversalBy :: TrailTraversal -> Double -> (Located (Segment Closed V2 Double), Int, Double, TrailTraversal)
-stepTrailTraversalBy tt@TT{currSegment,currSegmentIx,currDistLeft,nextSegments} delta =
-  if delta < currDistLeft
-    then (currSegment, currSegmentIx, currDistLeft', tt {currDistLeft = currDistLeft'})
-    else (nextSegment, nextSegmentIx, nextDistLeft', TT nextSegment nextSegmentIx nextDistLeft' segs)
-  where
-    currDistLeft' = currDistLeft - delta
-    (nextSegmentIx, nextSegment, nextDistLeft):segs = nextSegments
-    nextDistLeft' = nextDistLeft + currDistLeft'
-
-spirograph'' :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
-spirograph'' fixedCurve rollingCurve penLocation distance stepSize = placeAt penLocation <$> placements
-  where
     samplePoints :: [(Double, Located (Segment Closed V2 Double), Int, Double, Located (Segment Closed V2 Double), Int, Double)]
     samplePoints = buildSamplePoints 0 distance (initTrailTraversal fixedCurve) (initTrailTraversal rollingCurve)
 
@@ -73,22 +64,32 @@ spirograph'' fixedCurve rollingCurve penLocation distance stepSize = placeAt pen
           (rSeg, rSegIx, rDistLeft, rTrav) = stepTrailTraversalBy rollingTraversal advancement
       in (toGo, fSeg, fSegIx, fDistLeft, rSeg, rSegIx, rDistLeft) : if toGo <= 0 then [] else advanceAndBuildSamplePoints toGo fTrav rTrav
 
-    segmentPointTable = M.fromList
-                        . concatMap computeSegmentPoints
-                        . groupBy (on (==) $ \(ix,_,_,_) -> ix)
-                        . sortOn (\(ix,_,_,d) -> (ix,-d))
-                        . concatMap (\(ptId,fSeg,fSegIx,fDistLeft,rSeg,rSegIx,rDistLeft) -> [ (Left fSegIx, ptId, fSeg, fDistLeft)
-                                                                                            , (Right rSegIx, ptId, rSeg, rDistLeft)
-                                                                                            ]
-                                    )
-                        $ samplePoints
+    initTrailTraversal curve = let (initIx,initSeg,initDist):segs = cycle
+                                                                    . fmap (\(ix,seg) -> (ix,seg,stdArcLength seg))
+                                                                    . zip [0..]
+                                                                    . trailLocSegments
+                                                                    $ curve
+                               in TT initSeg initIx initDist segs
 
-    computeSegmentPoints [] = []
-    computeSegmentPoints pts'@((ix, _, fullSeg,_):_) =
+    stepTrailTraversalBy tt@TT{currSegment,currSegmentIx,currDistLeft,nextSegments} delta =
+      let currDistLeft' = currDistLeft - delta
+          (nextSegmentIx, nextSegment, nextDistLeft):segs = nextSegments
+          nextDistLeft' = nextDistLeft + currDistLeft'
+      in if delta < currDistLeft
+         then (currSegment, currSegmentIx, currDistLeft', tt {currDistLeft = currDistLeft'})
+         else (nextSegment, nextSegmentIx, nextDistLeft', TT nextSegment nextSegmentIx nextDistLeft' segs)
+
+    computeSegmentPoints = sortOn (\(ptId,_,_) -> -ptId)
+                           . concatMap computeSingleSegmentPoints
+                           . groupBy (on (==) $ \(ix,_,_,_) -> ix)
+                           . sortOn (\(ix,_,_,d) -> (ix,-d))
+
+    computeSingleSegmentPoints [] = []
+    computeSingleSegmentPoints pts'@((_, _, fullSeg,_):_) =
       let fullSegLen = stdArcLength fullSeg
           go [] _ _ _ = []
           go allPts@((ptId,pt):pts) allSegs@((seg,segLen,segPLen):segs) p d =
-            let entryAtParam atP = ((ix, ptId), (seg `atParam` atP, seg `tangentAtParam` atP))
+            let entryAtParam atP = (ptId, seg `atParam` atP, seg `tangentAtParam` atP)
                 closeEnough x = abs (pt - x) < stdTolerance
             in if | closeEnough d  -> entryAtParam p : go pts allSegs p d
                   | d + segLen < pt -> go allPts segs (p+segPLen) (d+segLen)
@@ -103,11 +104,7 @@ spirograph'' fixedCurve rollingCurve penLocation distance stepSize = placeAt pen
          [(fullSeg, fullSegLen, 1)]
          0 0
 
-    placements = do
-      (ptId, _, fSegIx, _, _, rSegIx, _) <- samplePoints
-      (fPt, fTan) <- maybeToList $ M.lookup (Left fSegIx, ptId) segmentPointTable
-      (rPt, rTan) <- maybeToList $ M.lookup (Right rSegIx, ptId) segmentPointTable
-      pure $ Placement fPt rPt $ signedAngleBetween fTan rTan
+    computePlacement ((_,fPt,fTan),(_,rPt,rTan)) = Placement fPt rPt $ signedAngleBetween fTan rTan
 
 
 
