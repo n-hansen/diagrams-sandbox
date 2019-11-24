@@ -1,5 +1,6 @@
+{-# LANGUAGE MultiWayIf            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing -fno-warn-partial-type-signatures -fno-warn-missing-signatures #-}
 module Spirograph
   ( spirograph
@@ -8,14 +9,14 @@ module Spirograph
   ) where
 
 import           Control.Arrow
-import           Data.Colour.RGBSpace (uncurryRGB)
+import           Data.Colour.RGBSpace     (uncurryRGB)
 import           Data.Colour.RGBSpace.HSL
 
 
 -- | Information for how to transform rolling coordinates to fixed coordinates
-data Placement = Placement { fixedContactPoint :: P2 Double
+data Placement = Placement { fixedContactPoint   :: P2 Double
                            , rollingContactPoint :: P2 Double
-                           , rollingRotation :: Angle Double
+                           , rollingRotation     :: Angle Double
                            }
                -- -- | BoundaryPlacement { fixedContactPoint1 :: P2 Double
                --                     , rollingContactPoint1 :: P2 Double
@@ -35,11 +36,11 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
 spirograph f r p d s = fromVertices $ spirographPoints f r p d s
 
 -- | State store for a traversal of a trail
-data TrailTraversal = TT { ttCurrSegment :: Located (Segment Closed V2 Double)
+data TrailTraversal = TT { ttCurrSegment       :: Located (Segment Closed V2 Double)
                          , ttCurrSegmentLength :: Double
-                         , ttCurrSegmentIx :: SegmentId
-                         , ttCurrDistLeft :: Double
-                         , ttNextSegments :: [(SegmentId, Located (Segment Closed V2 Double), Double)]
+                         , ttCurrSegmentIx     :: SegmentId
+                         , ttCurrDistLeft      :: Double
+                         , ttNextSegments      :: [(SegmentId, Located (Segment Closed V2 Double), Double)]
                          }
 
 -- | Each sampled point corresponds to a specific distance (from the end) of our traversal.
@@ -50,16 +51,16 @@ instance Ord SampleId where
 newtype SegmentId = SegId Int deriving (Eq, Ord, Enum)
 
 -- | Point on a specific segment that we want to sample at.
-data SegmentSamplePoint = SSP { sspSegment :: Located (Segment Closed V2 Double)
-                              , sspSegmentLength :: Double
-                              , sspSegmentIx :: SegmentId
+data SegmentSamplePoint = SSP { sspSegment             :: Located (Segment Closed V2 Double)
+                              , sspSegmentLength       :: Double
+                              , sspSegmentIx           :: SegmentId
                               , sspSegmentDistanceLeft :: Double
-                              , sspSampleId :: SampleId
+                              , sspSampleId            :: SampleId
                               }
 
 -- | Reified sample point from a segment/trail
-data ComputedSamplePoint = CSP { cspPoint :: P2 Double
-                               , cspTangent :: V2 Double
+data ComputedSamplePoint = CSP { cspPoint    :: P2 Double
+                               , cspTangent  :: V2 Double
                                , cspSampleId :: SampleId
                                }
 
