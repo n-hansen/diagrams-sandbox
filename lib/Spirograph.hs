@@ -107,17 +107,19 @@ spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt
 
     computeSingleSegmentPoints [] = []
     computeSingleSegmentPoints pts'@(SSP{sspSegment=fullSeg,sspSegmentLength=fullSegLen}:_) =
-      let go [] _ _ _ = []
+      let entryAtParam sid p = CSP (fullSeg `atParam` p) (fullSeg `tangentAtParam` p) sid
+          go [] _ _ _ = []
           go allPts@(SSP{sspSegmentDistanceLeft,sspSampleId}:pts) allSegs@((seg,segLen,segPLen):segs) p d =
             let pt = fullSegLen - sspSegmentDistanceLeft
-                entryAtParam atP = CSP (seg `atParam` atP) (seg `tangentAtParam` atP) sspSampleId
+                -- entryAtParam atP = CSP (seg `atParam` atP) (seg `tangentAtParam` atP) sspSampleId
                 closeEnough x = abs (pt - x) < stdTolerance
-            in if | closeEnough d  -> entryAtParam p : go pts allSegs p d
+            in if | closeEnough d  -> entryAtParam sspSampleId p : go pts allSegs p d
                   | d + segLen < pt -> go allPts segs (p+segPLen) (d+segLen)
-                  | closeEnough $ d + segLen -> entryAtParam (p+segPLen) : go pts segs (p+segPLen) (d+segLen)
+                  | closeEnough $ d + segLen -> entryAtParam sspSampleId (p+segPLen) : go pts segs (p+segPLen) (d+segLen)
                   | otherwise -> let (l,h) = seg `splitAtParam` 0.5
                                      lLen = stdArcLength l
-                                     hLen = segLen - lLen -- much cheaper than calling stdArcLength, but could grow our error over time...
+                                     hLen = -- stdArcLength h
+                                            segLen - lLen -- much cheaper than calling stdArcLength, but could grow our error over time...
                                  in -- traceShow (pt, segLen, p, d) $
                                     go allPts ((l,lLen,segPLen/2):(h,hLen,segPLen/2):segs) p d
       in go
