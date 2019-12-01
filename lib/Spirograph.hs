@@ -44,11 +44,11 @@ data TrailTraversal = TT { ttCurrSegment       :: Located (Segment Closed V2 Dou
                          }
 
 -- | Each sampled point corresponds to a specific distance (from the end) of our traversal.
-newtype SampleId = SmpId { unSmpId :: Double } deriving (Eq)
+newtype SampleId = SmpId { unSmpId :: Double } deriving (Eq, Show)
 instance Ord SampleId where
   compare = compare `on` negate . unSmpId
 
-newtype SegmentId = SegId Int deriving (Eq, Ord, Enum)
+newtype SegmentId = SegId Int deriving (Eq, Ord, Enum, Show)
 
 -- | Point on a specific segment that we want to sample at.
 data SegmentSamplePoint = SSP { sspSegment             :: Located (Segment Closed V2 Double)
@@ -56,13 +56,13 @@ data SegmentSamplePoint = SSP { sspSegment             :: Located (Segment Close
                               , sspSegmentIx           :: SegmentId
                               , sspSegmentDistanceLeft :: Double
                               , sspSampleId            :: SampleId
-                              }
+                              } deriving Show
 
 -- | Reified sample point from a segment/trail
 data ComputedSamplePoint = CSP { cspPoint    :: P2 Double
                                , cspTangent  :: V2 Double
                                , cspSampleId :: SampleId
-                               }
+                               } deriving Show
 
 spirographPoints :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
 spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt penLocation <$> placements
