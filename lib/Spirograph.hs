@@ -99,8 +99,9 @@ spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt
     samplePoints :: [(SegmentSamplePoint, SegmentSamplePoint)]
     samplePoints = buildSamplePoints 0 distance (initTrailTraversal fixedCurve) (initTrailTraversal rollingCurve)
 
+    -- TODO try rewriting with unfoldr to see if it is more clear
     advanceAndBuildSamplePoints toGo fixedTraversal rollingTraversal =
-      let advancement = min toGo $ minimum [ttCurrDistLeft fixedTraversal, ttCurrDistLeft rollingTraversal, stepSize]
+      let advancement = minimum [toGo, ttCurrDistLeft fixedTraversal, ttCurrDistLeft rollingTraversal, stepSize]
       in buildSamplePoints advancement (toGo - advancement) fixedTraversal rollingTraversal
 
     buildSamplePoints advancement toGo fixedTraversal rollingTraversal =
@@ -133,9 +134,9 @@ spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt
     computeSingleSegmentPoints pts'@(SSP{sspSegment=fullSeg,sspSegmentLength=fullSegLen}:_) =
       let entryAtParam sid p = CSP (fullSeg `atParam` p) (fullSeg `tangentAtParam` p) sid
           go [] _ _ _ = []
-          -- because we don't track our error bounds, we can sometimes run into the issue of the subdivided segments having total length
-          -- less than some of the offsets we need to compute. the simple, hacky solution is to just approximate any such points as occuring
-          -- at the end of the segment, and this seems to give acceptable results.
+          -- because we don't track our error bounds, we can sometimes run into the issue of the subdivided segments having
+          -- total length less than some of the offsets we need to compute. the simple, hacky solution is to just approximate
+          -- any such points as occuring at the end of the segment, and this seems to give acceptable results.
           go slop [] _ _ = [entryAtParam sspSampleId $ domainUpper fullSeg | SSP{sspSampleId} <- slop]
           go allPts@(SSP{sspSegmentDistanceLeft,sspSampleId}:pts) allSegs@((seg,segLen,segPLen):segs) p d =
             let pt = fullSegLen - sspSegmentDistanceLeft
