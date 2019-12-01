@@ -109,9 +109,12 @@ spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt
     computeSingleSegmentPoints pts'@(SSP{sspSegment=fullSeg,sspSegmentLength=fullSegLen}:_) =
       let entryAtParam sid p = CSP (fullSeg `atParam` p) (fullSeg `tangentAtParam` p) sid
           go [] _ _ _ = []
+          -- because we don't track our error bounds, we can sometimes run into the issue of the subdivided segments having total length
+          -- less than some of the offsets we need to compute. the simple, hacky solution is to just approximate any such points as occuring
+          -- at the end of the segment, and this seems to give acceptable results.
+          go slop [] _ _ = [entryAtParam sspSampleId $ domainUpper fullSeg | SSP{sspSampleId} <- slop]
           go allPts@(SSP{sspSegmentDistanceLeft,sspSampleId}:pts) allSegs@((seg,segLen,segPLen):segs) p d =
             let pt = fullSegLen - sspSegmentDistanceLeft
-                -- entryAtParam atP = CSP (seg `atParam` atP) (seg `tangentAtParam` atP) sspSampleId
                 closeEnough x = abs (pt - x) < stdTolerance
             in if | closeEnough d  -> entryAtParam sspSampleId p : go pts allSegs p d
                   | d + segLen < pt -> go allPts segs (p+segPLen) (d+segLen)
