@@ -33,7 +33,7 @@ placeAt thing Placement{fixedContactPoint, rollingContactPoint, rollingRotation}
   # rotate rollingRotation
   # translate (fixedContactPoint .-. origin)
 
-spirograph f r p d s = fromVertices $ spirographPoints f r p d s
+spirograph f r p d s = cubicSpline False $ spirographPoints f r p d s
 
 -- | State store for a traversal of a trail
 data TrailTraversal = TT { ttCurrSegment       :: Located (Segment Closed V2 Double)
@@ -140,9 +140,11 @@ example :: _ => QDiagram _ V2 Double Any
 example = curve
           # explodePath
           # mconcat
-          # zipWith lc [uncurryRGB sRGB $ hsl h 1 0.6 | h <- [0,1..]]
+          # zipWith lc [uncurryRGB sRGB $ hsl h 1 0.6 | h <- [0,0.5..]]
+          # fmap (lineCap LineCapRound)
           # mconcat
+          # flip atop (square 2.5 # fc black)
   where
     f = circle 2
-    r = circle 1.54 # translateY 0.488
-    curve = spirograph f r origin 100 0.1
+    r = circle 1.62 # translateY 0.488
+    curve = spirograph f r origin 1020.96 0.1
