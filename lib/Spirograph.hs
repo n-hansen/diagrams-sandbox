@@ -64,6 +64,30 @@ data ComputedSamplePoint = CSP { cspPoint    :: P2 Double
                                , cspSampleId :: SampleId
                                } deriving Show
 
+{- |
+General strategy of this function as well as some implementation notes:
+
+We are trying to sample the spirograph at evenly spaced intervals along the two /generating/ curves. In the
+current version of "Diagrams", it turns out that computing the arc length along a parameterized curve is
+quite expensive (and 'arcLengthToParam' especially so), and the total work that needs to be done is roughly
+proportional to the arc length itself. In particular, the naive solution of using 'arcLengthToParam' as we
+incrementally travel along each curve is superlinear in the total distance traveled and unacceptably slow.
+
+In order to efficiently sample points, we do the following:
+0. Explode each curve into its constituent 'Segment's.
+1. Enumerate all points to be sampled in terms of the offset along the individual segment.
+2. Group points by segment and order by offset.
+3. Walk along each segment, outputting sample points as we go:
+   a. Initialize a travel-distance (zero) and a queue of segments in front of us (inititally a singleton).
+      Travel-distance will be tracked in both arc length and parameter-value.
+   b. If our current arc distance is within 𝜀 of current offset, then use our current parameter value to
+      compute a sample point, pop the current offset off the queue, and continue.
+   c. If the next segment in front of us can be stepped over without overstepping the offset, then pop it
+      off the segment queue and continue.
+   d. Otherwise, split the segment in front of us into two smaller segments and continue.
+   e. We are done once the offset queue is empty.
+4. Reconstitute the original ordering of sample points.
+-}
 spirographPoints :: Located (Trail V2 Double) -> Located (Trail V2 Double) -> P2 Double -> Double -> Double -> [P2 Double]
 spirographPoints fixedCurve rollingCurve penLocation distance stepSize = placeAt penLocation <$> placements
   where
