@@ -3,16 +3,6 @@ module DivisionByThree where
 
 import Data.List (zip3)
 
-type String = [Char]
-
-s  = square 2 # showOrigin # lw thick
-ds = (s # named "1") ||| strutX 3 ||| (s # named "2")
-t  = cubicSpline False (map p2 [(0, 0), (1, 0), (1, 0.2), (2, 0.2)])
-
-example = ds # connect' (with & arrowHead .~ dart & lengths .~ veryLarge
-                              & arrowTail .~ dart'
-                              & shaftStyle %~ lw thick & arrowShaft .~ t) "1" "2"
-
 
 grid :: _ => _ -> [String] -> [String] -> Diagram _
 grid c rows cols = rows
