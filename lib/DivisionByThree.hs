@@ -83,7 +83,7 @@ arrowGrid c rows cols = rows
     firstCol = unsafeHead cols
     lastCol = unsafeLast cols
     cellScale = 1.2
-    arrowScale = 12
+    arrowScale = 30
     bigArrow = cols
                # map (\c -> square cellScale # lw 0 # named ("arr-" <> c))
                # foldr (|||) mempty
@@ -91,7 +91,7 @@ arrowGrid c rows cols = rows
                            & shaftStyle %~ lw arrowScale . lc c
                            & headStyle %~ lw arrowScale . lc c . fc c
                            & arrowHead .~ tri
-                           & tailGap .~ (-5)
+                           & tailGap .~ (-9)
                           )
                ("arr-" <> firstCol) ("arr-" <> lastCol)
     heading :: String -> _
@@ -144,6 +144,7 @@ hexLoop = labels `atop` arrows
                            & shaftStyle %~ lw thick . lc c
                            & headStyle %~ lc c . fc c -- . scale 9
                            & arrowHead .~ quill
+                           -- & arrowHead .~ tri
                          ) (show f :: String) (show t :: String)
     arrows = atPoints (trailVertices hex) (map node [1..6])
              # cxn blue 2 1
@@ -215,9 +216,9 @@ chain = nodes
              (cycle [red,blue])
 
 
-renderMe = chain
+renderMe = --chain
            --hexLoop
-           -- arrowMappings
+           arrowMappings
            -- arrowGrid red ["a","b","c"] ["1","2"]
            -- mappingGrids
            # pad 1.2
