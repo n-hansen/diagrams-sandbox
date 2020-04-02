@@ -81,17 +81,29 @@ executables:
     - -with-rtsopts=-N
     - -O2
 
-benchmarks:
-  fifteen-benchmarks:
-    source-dirs: benchmark
-    main: Main.hs
+  div-by-three:
+    source-dirs: src
+    main: DivisionByThreeMain.hs
     dependencies:
     - diagrams-sandbox
-    - criterion
     ghc-options:
+    - -main-is DivisionByThreeMain.main
     - -rtsopts
     - -threaded
     - -with-rtsopts=-N
+    - -O0
+
+# benchmarks:
+#   fifteen-benchmarks:
+#     source-dirs: benchmark
+#     main: Main.hs
+#     dependencies:
+#     - diagrams-sandbox
+#     - criterion
+#     ghc-options:
+#     - -rtsopts
+#     - -threaded
+#     - -with-rtsopts=-N
 
 # tests:
 #   diagrams-sandbox-test-suite:
